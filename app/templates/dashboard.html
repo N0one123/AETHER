@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+
+{% block title %}Mission Control | AETHER{% endblock %}
+{% block breadcrumb %}Mission Control{% endblock %}
+
+{% block content %}
+
+<div class="dashboard">
+
+    <!-- HEADER -->
+    <header class="dashboard-header">
+        <div>
+            <span class="eyebrow">MISSION OVERVIEW</span>
+            <h1>Mission Control</h1>
+            <p>Welcome to AETHER. Here's the current mission overview.</p>
+        </div>
+
+        <div class="header-right">
+            <div class="orbit-visual" aria-hidden="true">
+                <span class="ring"></span>
+                <span class="ring r2"></span>
+                <span class="core"></span>
+            </div>
+
+            <div class="mission-status">
+                <span class="status-indicator"></span>
+                {{ dashboard_data.mission.status }}
+            </div>
+        </div>
+    </header>
+
+
+    <!-- LIVE TELEMETRY TICKER -->
+    {% set crew_count = dashboard_data.crew | length if dashboard_data.crew else 0 %}
+    {% set alert_count = dashboard_data.alerts | length if dashboard_data.alerts else 0 %}
+    <div class="ticker" aria-label="System telemetry feed">
+        {% for _ in range(2) %}
+        <div class="ticker-track" {% if loop.index == 2 %}aria-hidden="true"{% endif %}>
+            <span class="ticker-item ok"><i></i>MISSION <b>{{ dashboard_data.mission.status | upper }}</b></span>
+            <span class="ticker-item"><i></i>CREW ON RECORD <b>{{ crew_count }}</b></span>
+            <span class="ticker-item {% if alert_count %}warn{% else %}ok{% endif %}"><i></i>ACTIVE ALERTS <b>{{ alert_count }}</b></span>
+            {% for core in dashboard_data.cores %}
+            <span class="ticker-item ok"><i></i>{{ core.name | upper }} <b>{{ core.status | upper }}</b></span>
+            {% endfor %}
+        </div>
+        {% endfor %}
+    </div>
+
+
+    <!-- TOP METRICS -->
+    <section class="dashboard-metrics">
+
+        {% for metric in dashboard_data.metrics %}
+        <article class="metric-card">
+            <span class="metric-label">{{ metric.label }}</span>
+            <strong class="metric-value">{{ metric.value }}</strong>
+            <span class="metric-detail">{{ metric.detail }}</span>
+        </article>
+        {% endfor %}
+
+    </section>
+
+
+    <!-- MAIN DASHBOARD GRID -->
+    <section class="dashboard-grid">
+
+        <!-- CREW -->
+        <article class="dashboard-panel crew-panel">
+            <div class="panel-heading">
+                <div>
+                    <span class="eyebrow">ASTRONAUT SYSTEM</span>
+                    <h2>Crew Overview</h2>
+                </div>
+                <a href="/astronauts">View all ↗</a>
+            </div>
+
+            {% if dashboard_data.crew %}
+                <div class="crew-list">
+                    {% for astronaut in dashboard_data.crew %}
+                    <div class="crew-item">
+                        <div class="crew-avatar">
+                            {{ astronaut.name[0] }}
+                        </div>
+                        <div class="crew-info">
+                            <strong>{{ astronaut.name }}</strong>
+                            <span>{{ astronaut.status }}</span>
+                        </div>
+                        <span class="crew-health">
+                            {{ astronaut.health_status }}
+                        </span>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="panel-empty">
+                    <span class="empty-icon">♙</span>
+                    <strong>No crew records</strong>
+                    <p>Astronaut information will appear here.</p>
+                </div>
+            {% endif %}
+        </article>
+
+
+        <!-- VITAL SIGNS -->
+        <article class="dashboard-panel chart-panel">
+            <div class="panel-heading">
+                <div>
+                    <span class="eyebrow">HEALTH MONITORING</span>
+                    <h2>Vital Signs</h2>
+                </div>
+                <a href="/health">Details ↗</a>
+            </div>
+
+            <div class="chart-container" id="vitals-chart">
+                <div class="chart-empty">Waiting for measurement data</div>
+            </div>
+        </article>
+
+
+        <!-- RADIATION -->
+        <article class="dashboard-panel chart-panel">
+            <div class="panel-heading">
+                <div>
+                    <span class="eyebrow">ENVIRONMENTAL MONITORING</span>
+                    <h2>Radiation Exposure</h2>
+                </div>
+                <a href="/radiation">Details ↗</a>
+            </div>
+
+            <div class="chart-container" id="radiation-chart">
+                <div class="chart-empty">Waiting for measurement data</div>
+            </div>
+        </article>
+
+
+        <!-- EMERGENCY CENTRE -->
+        <article class="dashboard-panel emergency-panel">
+            <div class="panel-heading">
+                <div>
+                    <span class="eyebrow">EMERGENCY RESPONSE</span>
+                    <h2>Alert Centre</h2>
+                </div>
+                <a href="/emergency-response">Details ↗</a>
+            </div>
+
+            {% if dashboard_data.alerts %}
+                <div class="alert-list">
+                    {% for alert in dashboard_data.alerts[:3] %}
+                    <div class="alert-item">
+                        <span class="alert-indicator"></span>
+                        <div>
+                            <strong>{{ alert.title }}</strong>
+                            <p>{{ alert.description }}</p>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="panel-empty compact">
+                    <span class="empty-icon">✓</span>
+                    <strong>No active alerts</strong>
+                    <p>No alerts have been received.</p>
+                </div>
+            {% endif %}
+        </article>
+
+    </section>
+
+
+    <!-- CORE SYSTEM STATUS -->
+    <section class="dashboard-panel core-status-panel">
+        <div class="panel-heading">
+            <div>
+                <span class="eyebrow">SYSTEM ARCHITECTURE</span>
+                <h2>Core Systems</h2>
+            </div>
+            <span class="panel-subtitle">{{ dashboard_data.cores | length }} registered systems</span>
+        </div>
+
+        <div class="core-status-grid">
+            {% for core in dashboard_data.cores %}
+            <a
+                href="{% if core.id == 'astronaut' %}/astronauts{% elif core.id == 'health' %}/health{% elif core.id == 'emergency' %}/emergency-response{% else %}/{{ core.id }}{% endif %}"
+                class="core-status-item"
+            >
+                <span class="core-status-icon">{{ core.icon }}</span>
+                <span class="core-status-info">
+                    <strong>{{ core.name }}</strong>
+                    <small>{{ core.status }}</small>
+                </span>
+                <span class="core-status-dot"></span>
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+
+
+    <!-- FOOTER -->
+    <footer class="dashboard-footer">
+        <span>AETHER · Astronaut Evaluation Tracking Health and Emergency Response</span>
+    </footer>
+
+</div>
+
+{% endblock %}

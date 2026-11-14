@@ -1,0 +1,1200 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} | AETHER{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <div>
+        <h1>{{ page_title }}</h1>
+        <p>{{ page_description }}</p>
+    </div>
+
+    <div class="core-status">
+        <span class="status-indicator"></span>
+        {{ core_status }}
+    </div>
+</div>
+
+
+<!-- PAGE FEEDBACK MESSAGES -->
+{% if error == "astronaut_not_found" %}
+<div class="form-message error-message">
+    Astronaut not found. Register the astronaut first.
+</div>
+
+{% elif error == "creation_failed" %}
+<div class="form-message error-message">
+    Operation failed. Please check the system logs.
+</div>
+{% endif %}
+
+{% if success == "alert_created" %}
+<div class="form-message success-message">
+    Alert successfully created.
+</div>
+{% endif %}
+
+
+<!-- CORE METRICS -->
+{% if metrics %}
+<div class="metrics-grid">
+    {% for metric in metrics %}
+    <div class="metric-card">
+        <div class="metric-label">{{ metric.label }}</div>
+        <div class="metric-value">{{ metric.value }}</div>
+        <div class="metric-detail">{{ metric.detail }}</div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+
+<div class="core-content">
+
+    {% block core_content %}
+
+        <!-- ASTRONAUT MANAGEMENT -->
+        {% if active_page == "astronauts" %}
+
+            <div class="content-panel">
+                <div class="section-header">
+                    <h2>Register Astronaut</h2>
+                </div>
+
+                {% if page_message %}
+                <p class="form-message">{{ page_message }}</p>
+                {% endif %}
+
+                <form method="POST" action="/astronauts/register" class="astronaut-form">
+                    <input type="text" name="astronaut_id" placeholder="Astronaut ID" required>
+                    <input type="text" name="name" placeholder="Full Name" required>
+                    <input type="text" name="mission" placeholder="Mission (optional)">
+                    <button type="submit" class="action-button">Register Astronaut</button>
+                </form>
+            </div>
+
+            {% if astronauts %}
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Astronaut ID</th>
+                            <th>Name</th>
+                            <th>Mission</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for person in astronauts %}
+                        <tr>
+                            <td>{{ person.id }}</td>
+                            <td>
+                                <button
+                                    class="astronaut-edit-trigger"
+                                    type="button"
+                                    aria-label="Edit {{ person.name }}"
+                                    data-astronaut-id="{{ person.id }}"
+                                    data-astronaut-name="{{ person.name }}"
+                                    data-astronaut-mission="{{ person.mission or '' }}"
+                                    data-astronaut-status="{{ person.status }}"
+                                >{{ person.name }}</button>
+                            </td>
+                            <td>{{ person.mission or "—" }}</td>
+                            <td>{{ person.status }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <dialog class="astronaut-editor" id="astronaut-editor" aria-labelledby="astronaut-editor-title">
+                <div class="astronaut-editor-heading">
+                    <div>
+                        <span class="eyebrow">CREW PROFILE</span>
+                        <h2 id="astronaut-editor-title">Edit Astronaut</h2>
+                        <p id="astronaut-editor-name"></p>
+                    </div>
+                    <button class="astronaut-editor-close" type="button" data-close-astronaut-editor aria-label="Close editor">×</button>
+                </div>
+
+                <form method="POST" action="/astronauts/update" class="astronaut-editor-form">
+                    <input type="hidden" name="astronaut_id" data-edit-astronaut-id>
+                    <label for="astronaut-edit-mission">Mission</label>
+                    <input id="astronaut-edit-mission" type="text" name="mission" placeholder="Mission (optional)">
+
+                    <label for="astronaut-edit-status">Status</label>
+                    <input id="astronaut-edit-status" type="text" name="status" required>
+
+                    <div class="form-actions">
+                        <button type="submit" class="action-button">Save Changes</button>
+                        <button type="button" class="action-button ghost" data-close-astronaut-editor>Cancel</button>
+                    </div>
+                </form>
+
+                <form method="POST" action="/astronauts/delete" class="astronaut-delete-form" data-astronaut-delete-form>
+                    <input type="hidden" name="astronaut_id" data-delete-astronaut-id>
+                    <button type="submit" class="action-button danger">Delete Astronaut</button>
+                </form>
+            </dialog>
+            {% else %}
+            <p class="empty-state">No astronauts registered yet.</p>
+            {% endif %}
+
+            {% elif active_page == "evaluation" %}
+
+            <div class="content-panel">
+                <div class="section-header">
+                    <div>
+                        <h2>Astronaut Symptom Evaluation</h2>
+                        <p>
+                            Select the symptoms reported by the astronaut.
+                            AETHER will compare them with documented spaceflight
+                            health research.
+                        </p>
+                    </div>
+                </div>
+            
+                <form method="POST" action="/evaluation/assess">
+            
+                    <div class="symptom-grid">
+                        {% for symptom in symptoms %}
+                        <label class="symptom-option">
+                            <input
+                                type="checkbox"
+                                name="selected_symptoms"
+                                value="{{ symptom.id }}"
+                                {% if assessment and symptom.id in
+                                    (assessment.selected_symptoms | map(attribute='id') | list) %}
+                                    checked
+                                {% endif %}
+                            >
+            
+                            <span>{{ symptom.name }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+            
+                    <div class="form-actions">
+                        <button type="submit" class="action-button">
+                            Evaluate Selected Symptoms
+                        </button>
+                        <span class="symptom-counter" data-symptom-counter><b>0</b> selected</span>
+                    </div>
+            
+                </form>
+            </div>
+            
+            {% if error == "assessment_failed" %}
+            <div class="content-panel">
+                <p class="form-message">
+                    The assessment could not be completed. Please try again.
+                </p>
+            </div>
+            {% endif %}
+            
+            {% if assessment %}
+            <span class="simulated-badge">SIMULATED</span>
+            <div class="content-panel">
+                <div class="section-header">
+                    <div>
+                        <h2>Assessment Results</h2>
+                        <p>{{ assessment.message }}</p>
+                    </div>
+                </div>
+            
+                <div class="assessment-stats">
+                    <span><strong>{{ assessment.total_selected }}</strong> selected symptoms</span>
+                    <span><strong>{{ assessment.total_matches }}</strong> research associations</span>
+                </div>
+            
+                {% if assessment.matched_conditions %}
+            
+                    {% for condition in assessment.matched_conditions %}
+            
+                    <div class="content-panel">
+                        <h3>{{ condition.name }}</h3>
+            
+                        <p>{{ condition.description }}</p>
+            
+                        <p>
+                            <strong>Matching symptoms:</strong>
+                            {{ condition.matched_symptom_count }}
+                        </p>
+            
+                        <h4>Matched Symptoms</h4>
+                        <ul>
+                            {% for symptom in condition.matched_symptoms %}
+                            <li>{{ symptom.name }}</li>
+                            {% endfor %}
+                        </ul>
+            
+                        {% if condition.clinical_observations %}
+                        <h4>Documented Clinical Observations</h4>
+                        <ul>
+                            {% for observation in condition.clinical_observations %}
+                            <li>{{ observation }}</li>
+                            {% endfor %}
+                        </ul>
+                        {% endif %}
+            
+                        {% if condition.research_indicators %}
+                        <h4>Research Indicators</h4>
+                        <ul>
+                            {% for indicator in condition.research_indicators %}
+                            <li>{{ indicator }}</li>
+                            {% endfor %}
+                        </ul>
+                        {% endif %}
+            
+                        {% if condition.sources %}
+                        <h4>Sources</h4>
+                        <ul>
+                            {% for source in condition.sources %}
+                            <li>
+                                <a href="{{ source.url }}"
+                                   target="_blank"
+                                   rel="noopener noreferrer">
+                                    {{ source.name }}
+                                </a>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                        {% endif %}
+            
+                    {% if condition.limitations %}
+                        <h4>Limitations</h4>
+                    
+                        {% if condition.limitations is string %}
+                            <p>{{ condition.limitations }}</p>
+                        {% else %}
+                            <ul>
+                                {% for limitation in condition.limitations %}
+                                    <li>{{ limitation }}</li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
+                    {% endif %}
+                    </div>
+            
+                    {% endfor %}
+            
+                {% else %}
+                    <p>No documented associations were found for this selection.</p>
+                {% endif %}
+            
+                {% if assessment.unrecognised_symptoms %}
+                <h4>Unrecognised Entries</h4>
+                <ul>
+                    {% for symptom in assessment.unrecognised_symptoms %}
+                    <li>{{ symptom }}</li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+            
+                {% if assessment.unmatched_symptoms %}
+                <h4>Symptoms Without a Match</h4>
+                <ul>
+                    {% for symptom in assessment.unmatched_symptoms %}
+                    <li>{{ symptom.name }}</li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+            
+                <p class="form-message">
+                    {{ assessment.assessment_note }}
+                </p>
+            </div>
+            
+            {% endif %}
+
+        <!-- TRACKING -->
+        {% elif active_page == "tracking" %}
+
+            <div class="content-panel">
+                <div class="section-header">
+                    <h2>Recorded Measurements</h2>
+                    <span>{{ measurements | length }} records</span>
+                </div>
+
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Astronaut</th>
+                                <th>Measurement</th>
+                                <th>Value</th>
+                                <th>Source</th>
+                                <th>Data Type</th>
+                                <th>Timestamp</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in measurements %}
+                            <tr>
+                                <td>{{ item.astronaut_id }}</td>
+                                <td>{{ item.measurement }}</td>
+                                <td>{{ item.value }} {{ item.unit }}</td>
+                                <td>{{ item.source }}</td>
+                                <td>{{ "SIMULATED" if item.simulated else "RECORDED" }}</td>
+                                <td>{{ item.timestamp }}</td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="6" class="table-empty">
+                                    No measurements recorded yet.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+
+        <!-- HEALTH MONITORING -->
+        {% elif active_page == "health" %}
+
+            <div class="health-overview">
+
+                <!-- HEALTH FEEDBACK -->
+                {% if page_message %}
+                <div class="form-message">
+                    {{ page_message }}
+                </div>
+                {% endif %}
+
+
+                <!-- HEALTH ACTIONS -->
+                <div class="action-grid">
+
+                    <button
+                        class="action-button"
+                        type="button"
+                        onclick="document.getElementById('health-entry').scrollIntoView({behavior: 'smooth'})"
+                    >
+                        Record Measurement
+                    </button>
+
+                    <button
+                        class="action-button"
+                        type="button"
+                        id="start-simulation"
+                    >
+                        Start Simulation
+                    </button>
+
+                </div>
+
+
+                <!-- DATA MODE OVERVIEW -->
+                <div class="content-panel health-data-overview">
+
+                    <div class="section-header">
+                        <div>
+                            <h2>Data Overview</h2>
+                            <p>Health monitoring data classification.</p>
+                        </div>
+                    </div>
+
+                    <div class="health-data-split">
+
+                        <div class="health-data-item">
+                            <span class="health-data-label">RECORDED DATA</span>
+                            <strong>{{ real_measurements }}</strong>
+                            <p>Non-simulated measurements</p>
+                        </div>
+
+                        <div class="health-data-item simulated-data">
+                            <span class="health-data-label">SIMULATED DATA</span>
+                            <strong>{{ simulated_measurements }}</strong>
+                            <p>Synthetic demonstration measurements</p>
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- MANUAL MEASUREMENT ENTRY -->
+                <div
+                    class="content-panel health-entry-panel"
+                    id="health-entry"
+                >
+
+                    <div class="section-header">
+                        <div>
+                            <h2>Record Health Measurement</h2>
+                            <p>Enter a measurement for an astronaut.</p>
+                        </div>
+                    </div>
+
+                    <form
+                        method="POST"
+                        action="/health/record-measurement"
+                        class="health-measurement-form"
+                    >
+
+                        <label for="health-astronaut-id">
+                            Astronaut ID
+                        </label>
+
+                        <input
+                            type="text"
+                            id="health-astronaut-id"
+                            name="astronaut_id"
+                            placeholder="Enter astronaut ID"
+                            required
+                        >
+
+                        <label for="health-measurement">
+                            Measurement Type
+                        </label>
+
+                        <select
+                            id="health-measurement"
+                            name="measurement"
+                            required
+                        >
+                            <option value="" disabled selected>
+                                Select measurement
+                            </option>
+                            <option value="heart_rate">Heart Rate</option>
+                            <option value="blood_oxygen">Blood Oxygen</option>
+                            <option value="body_temperature">Body Temperature</option>
+                            <option value="respiratory_rate">Respiratory Rate</option>
+                            <option value="systolic_blood_pressure">Systolic Blood Pressure</option>
+                            <option value="diastolic_blood_pressure">Diastolic Blood Pressure</option>
+                        </select>
+
+                        <label for="health-value">
+                            Measurement Value
+                        </label>
+
+                        <input
+                            type="number"
+                            step="any"
+                            id="health-value"
+                            name="value"
+                            placeholder="Enter measurement value"
+                            required
+                        >
+
+                        <div class="form-actions">
+                            <button type="submit" class="action-button">
+                                Submit Measurement
+                            </button>
+                        </div>
+
+                    </form>
+
+                </div>
+
+
+                <!-- MONITORING RULES -->
+                <div class="content-panel health-rules-panel">
+
+                    <div class="section-header">
+                        <div>
+                            <h2>Monitoring Rules</h2>
+                            <p>Configure measurement boundaries and alert severity.</p>
+                        </div>
+
+                        <span>{{ monitoring_rules | length }} rules</span>
+                    </div>
+
+
+                    <!-- CONFIGURE RULE -->
+                    <form
+                        method="POST"
+                        action="/health/configure-rule"
+                        class="health-measurement-form"
+                        id="configure-monitoring-rule"
+                    >
+
+                        <label for="rule-measurement">
+                            Measurement
+                        </label>
+
+                        <select
+                            id="rule-measurement"
+                            name="measurement"
+                            required
+                        >
+                            <option value="" disabled selected>
+                                Select measurement
+                            </option>
+                            <option value="heart_rate">Heart Rate</option>
+                            <option value="blood_oxygen">Blood Oxygen</option>
+                            <option value="body_temperature">Body Temperature</option>
+                            <option value="respiratory_rate">Respiratory Rate</option>
+                            <option value="systolic_blood_pressure">Systolic Blood Pressure</option>
+                            <option value="diastolic_blood_pressure">Diastolic Blood Pressure</option>
+                        </select>
+
+
+                        <label for="rule-minimum">
+                            Minimum Boundary
+                        </label>
+
+                        <input
+                            type="number"
+                            step="any"
+                            id="rule-minimum"
+                            name="minimum"
+                            placeholder="Optional"
+                        >
+
+
+                        <label for="rule-maximum">
+                            Maximum Boundary
+                        </label>
+
+                        <input
+                            type="number"
+                            step="any"
+                            id="rule-maximum"
+                            name="maximum"
+                            placeholder="Optional"
+                        >
+
+
+                        <label for="rule-severity">
+                            Alert Severity
+                        </label>
+
+                        <select
+                            id="rule-severity"
+                            name="severity"
+                            required
+                        >
+                            <option value="low">Low</option>
+                            <option value="medium" selected>Medium</option>
+                            <option value="high">High</option>
+                            <option value="critical">Critical</option>
+                        </select>
+
+
+                        <label for="rule-description">
+                            Description
+                        </label>
+
+                        <input
+                            type="text"
+                            id="rule-description"
+                            name="description"
+                            placeholder="Describe this monitoring rule"
+                        >
+
+
+                    </form>
+
+                    <div class="health-rule-action-row">
+                        <div class="form-actions">
+                            <button type="submit" form="configure-monitoring-rule" class="action-button">
+                                Save Monitoring Rule
+                            </button>
+                        </div>
+
+                        <div class="health-defaults-control">
+                            <span class="health-defaults-label">
+                                Defaults:
+                                <strong class="health-rule-status {{ 'is-enabled' if default_rules_enabled else 'is-disabled' }}">
+                                    {{ "ENABLED" if default_rules_enabled else "DISABLED" }}
+                                </strong>
+                            </span>
+                            <form method="POST" action="/health/default-rules">
+                                <input type="hidden" name="enabled" value="{{ 'false' if default_rules_enabled else 'true' }}">
+                                <button
+                                    type="submit"
+                                    class="action-button {{ 'ghost' if default_rules_enabled else '' }}"
+                                >
+                                    {{ "Disable Defaults" if default_rules_enabled else "Enable Defaults" }}
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+
+                    <!-- CONFIGURED RULES -->
+                    <div class="health-rules-list">
+
+                        {% for rule in monitoring_rules %}
+                        {% set rule_index = loop.index %}
+
+                        <article class="health-rule-card" data-health-rule-card>
+                            <button
+                                type="button"
+                                class="health-rule-summary"
+                                aria-expanded="false"
+                                aria-controls="health-rule-details-{{ rule_index }}"
+                                aria-label="Show details for {{ rule.measurement | replace('_', ' ') | title }}"
+                                data-health-rule-summary
+                            >
+                                <span
+                                    class="health-rule-title"
+                                    title="{{ rule.measurement | replace('_', ' ') | title }}"
+                                >{{ rule.measurement | replace("_", " ") | title }}</span>
+                                <span class="health-rule-expand-icon" aria-hidden="true">+</span>
+                            </button>
+
+                            <div
+                                class="health-rule-details"
+                                id="health-rule-details-{{ rule_index }}"
+                                hidden
+                            >
+                                <p class="health-rule-description">
+                                    {{ rule.description or "No description provided." }}
+                                </p>
+
+                                <div class="health-rule-meta">
+                                    <div class="health-rule-boundaries">
+                                        <span>MIN: {{ rule.minimum if rule.minimum is not none else "—" }}</span>
+                                        <span>MAX: {{ rule.maximum if rule.maximum is not none else "—" }}</span>
+                                    </div>
+
+                                    <span class="health-rule-severity severity-tag-{{ rule.severity | lower }}">
+                                        {{ rule.severity | upper }}
+                                    </span>
+
+                                    <span class="health-rule-status {{ 'is-enabled' if rule.enabled else 'is-disabled' }}">
+                                        {{ "ENABLED" if rule.enabled else "DISABLED" }}
+                                    </span>
+
+                                    {% if rule.is_default %}
+                                    <span class="health-rule-status is-enabled">DEFAULT</span>
+                                    {% endif %}
+                                </div>
+
+                                <div class="health-rule-actions">
+                                    <button
+                                        type="button"
+                                        class="action-button ghost"
+                                        aria-expanded="false"
+                                        data-health-rule-edit-toggle
+                                    >Edit</button>
+
+                                    <form method="POST" action="/health/remove-rule">
+                                        <input type="hidden" name="measurement" value="{{ rule.measurement }}">
+                                        <button type="submit" class="action-button danger">Remove</button>
+                                    </form>
+                                </div>
+
+                                <form
+                                    method="POST"
+                                    action="/health/configure-rule"
+                                    class="health-rule-edit-form"
+                                    hidden
+                                >
+                                    <input type="hidden" name="measurement" value="{{ rule.measurement }}">
+
+                                    <label for="rule-minimum-{{ rule_index }}">Minimum Boundary</label>
+                                    <input
+                                        type="number"
+                                        step="any"
+                                        id="rule-minimum-{{ rule_index }}"
+                                        name="minimum"
+                                        value="{{ rule.minimum if rule.minimum is not none else '' }}"
+                                        placeholder="Optional"
+                                    >
+
+                                    <label for="rule-maximum-{{ rule_index }}">Maximum Boundary</label>
+                                    <input
+                                        type="number"
+                                        step="any"
+                                        id="rule-maximum-{{ rule_index }}"
+                                        name="maximum"
+                                        value="{{ rule.maximum if rule.maximum is not none else '' }}"
+                                        placeholder="Optional"
+                                    >
+
+                                    <label for="rule-severity-{{ rule_index }}">Alert Severity</label>
+                                    <select id="rule-severity-{{ rule_index }}" name="severity" required>
+                                        {% for severity in ["low", "medium", "high", "critical"] %}
+                                        <option value="{{ severity }}" {% if rule.severity == severity %}selected{% endif %}>
+                                            {{ severity | title }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+
+                                    <label for="rule-description-{{ rule_index }}">Description</label>
+                                    <input
+                                        type="text"
+                                        id="rule-description-{{ rule_index }}"
+                                        name="description"
+                                        value="{{ rule.description or '' }}"
+                                        placeholder="Describe this monitoring rule"
+                                    >
+
+                                    <div class="form-actions">
+                                        <button type="submit" class="action-button">Save Changes</button>
+                                        <button type="button" class="action-button ghost" data-health-rule-edit-cancel>
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </article>
+
+                        {% else %}
+
+                        <p class="empty-state">
+                            No monitoring rules configured.
+                        </p>
+
+                        {% endfor %}
+
+                    </div>
+
+                </div>
+
+
+                <!-- HEALTH MEASUREMENT HISTORY -->
+                <div class="content-panel health-history-panel">
+
+                    <div class="section-header">
+                        <div>
+                            <h2>Health Measurement History</h2>
+                            <p>Recent measurements processed by Health Core.</p>
+                        </div>
+
+                        <span>{{ measurements | length }} records</span>
+                    </div>
+
+                    <div class="table-container">
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Astronaut</th>
+                                    <th>Measurement</th>
+                                    <th>Value</th>
+                                    <th>Source</th>
+                                    <th>Data Mode</th>
+                                    <th>Timestamp</th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+
+                                {% for item in measurements %}
+
+                                <tr>
+                                    <td>{{ item.astronaut_id }}</td>
+
+                                    <td>
+                                        {{ item.measurement | replace("_", " ") | title }}
+                                    </td>
+
+                                    <td>
+                                        {{ item.value }} {{ item.unit }}
+                                    </td>
+
+                                    <td>{{ item.source }}</td>
+
+                                    <td>
+                                        {% if item.simulated %}
+                                        <span class="simulated-label">
+                                            SIMULATED
+                                        </span>
+                                        {% else %}
+                                        <span class="recorded-label">
+                                            RECORDED
+                                        </span>
+                                        {% endif %}
+                                    </td>
+
+                                    <td>{{ item.timestamp }}</td>
+                                </tr>
+
+                                {% else %}
+
+                                <tr>
+                                    <td colspan="6" class="table-empty">
+                                        No health measurements recorded yet.
+                                    </td>
+                                </tr>
+
+                                {% endfor %}
+
+                            </tbody>
+                        </table>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+        <!-- EMERGENCY RESPONSE -->
+        {% elif active_page == "emergency" %}
+
+            <!-- EMERGENCY ACTIONS -->
+            <div class="action-grid">
+
+                <button class="action-button" id="create-alert" type="button">
+                    Create Alert
+                </button>
+
+                <button class="action-button" id="view-active" type="button">
+                    View Active Incidents
+                </button>
+
+            </div>
+
+
+            <!-- CREATE ALERT FORM -->
+            <div
+                class="content-panel alert-form-panel"
+                id="create-alert-form"
+                hidden
+            >
+
+                <div class="section-header">
+                    <div>
+                        <h2>Create New Alert</h2>
+                        <p>Register an incident in the AETHER system.</p>
+                    </div>
+                </div>
+
+                <form
+                    action="/emergency-response/create-alert"
+                    method="POST"
+                    class="alert-form"
+                >
+
+                    <label for="alert-astronaut">Astronaut ID</label>
+
+                    <input
+                        type="text"
+                        id="alert-astronaut"
+                        name="astronaut_id"
+                        placeholder="Enter astronaut ID"
+                        required
+                    >
+
+                    <label for="alert-title">Alert Title</label>
+
+                    <input
+                        type="text"
+                        id="alert-title"
+                        name="title"
+                        placeholder="Enter alert title"
+                        required
+                    >
+
+                    <label for="alert-description">Description</label>
+
+                    <textarea
+                        id="alert-description"
+                        name="description"
+                        placeholder="Describe the incident..."
+                    ></textarea>
+
+                    <label for="alert-severity">Severity</label>
+
+                    <select id="alert-severity" name="severity">
+                        <option value="low">Low</option>
+                        <option value="medium">Medium</option>
+                        <option value="high">High</option>
+                        <option value="critical" selected>Critical</option>
+                    </select>
+
+
+                    <div class="form-actions">
+
+                        <button type="submit" class="action-button">
+                            Create Alert
+                        </button>
+
+                        <button
+                            type="button"
+                            class="action-button ghost"
+                            id="cancel-create-alert"
+                        >
+                            Cancel
+                        </button>
+
+                    </div>
+
+                </form>
+
+            </div>
+
+
+            <!-- EMERGENCY OVERVIEW -->
+            <div class="emergency-overview">
+
+                <div class="emergency-banner">
+
+                    <div class="emergency-banner-info">
+
+                        <span class="emergency-eyebrow">
+                            EMERGENCY OPERATIONS
+                        </span>
+
+                        <h2>
+                            {% if active_alerts %}
+                                INCIDENTS REQUIRE ATTENTION
+                            {% else %}
+                                ALL SYSTEMS CLEAR
+                            {% endif %}
+                        </h2>
+
+                        <p>
+                            {% if active_alerts %}
+                                {{ active_alerts | length }} unresolved incident(s) currently being monitored.
+                            {% else %}
+                                No active emergency incidents are currently recorded.
+                            {% endif %}
+                        </p>
+
+                    </div>
+
+                    <div class="emergency-pulse {{ pulse_class }}">
+                        <span></span>
+                    </div>
+
+                </div>
+
+
+                <!-- SEVERITY OVERVIEW -->
+                <div class="severity-panel">
+
+                    <div class="emergency-section-heading">
+
+                        <div>
+                            <span>INCIDENT CLASSIFICATION</span>
+                            <h2>Severity Overview</h2>
+                        </div>
+
+                        <span class="live-label">ACTIVE ALERTS</span>
+
+                    </div>
+
+                    <div class="severity-grid">
+
+                        {% for level, count in severity_counts.items() %}
+
+                        <div class="severity-card severity-{{ level | lower }}">
+
+                            <span class="severity-label">
+                                {{ level }}
+                            </span>
+
+                            <strong>{{ count }}</strong>
+
+                            <span class="severity-description">
+                                Active incidents
+                            </span>
+
+                        </div>
+
+                        {% endfor %}
+
+                    </div>
+
+                </div>
+
+
+                <!-- ACTIVE INCIDENTS -->
+                <div
+                    class="emergency-section-heading incident-heading"
+                    id="active-incidents"
+                >
+
+                    <div>
+                        <span>RESPONSE CENTRE</span>
+                        <h2>Active Incidents</h2>
+                    </div>
+
+                    <span class="incident-count">
+                        {{ active_alerts | length }} ACTIVE
+                    </span>
+
+                </div>
+                {% if success == "alert_resolved" %}
+                <div class="form-message success-message">
+                    Incident successfully marked as resolved.
+                </div>
+                {% endif %}
+                {% if error == "resolve_failed" %}
+                <div class="form-message error-message">
+                    Could not resolve this incident. It may already be resolved.
+                </div>
+                {% endif %}
+                <div class="incident-list">
+
+                    {% for alert in active_alerts %}
+
+                    <a
+                        href="/emergency-response?incident={{ alert.id | urlencode }}#incident-details"
+                        class="incident-card severity-border-{{ alert.severity | lower }}"
+                    >
+
+                        <div class="incident-card-top">
+
+                            <span class="incident-severity severity-tag-{{ alert.severity | lower }}">
+                                {{ alert.severity | upper }}
+                            </span>
+
+                            <span class="incident-status">
+                                {{ alert.status | upper }}
+                            </span>
+
+                        </div>
+
+                        <h3>{{ alert.title }}</h3>
+
+                        <p>{{ alert.description }}</p>
+
+                        <div class="incident-meta">
+                            <span>ASTRONAUT: {{ alert.astronaut_id }}</span>
+                            <span>SOURCE: {{ alert.source }}</span>
+                            <span>{{ alert.created_at }}</span>
+                        </div>
+
+                    </a>
+
+                    {% else %}
+
+                    <div class="no-incidents">
+
+                        <div class="no-incidents-icon">✓</div>
+
+                        <h3>No Active Incidents</h3>
+
+                        <p>
+                            There are currently no unresolved emergency alerts.
+                        </p>
+
+                    </div>
+
+                    {% endfor %}
+
+                </div>
+                {% if selected_alert %}
+
+                <div
+                    class="content-panel incident-details-panel"
+                    id="incident-details"
+                >
+                
+                    <div class="section-header">
+                        <div>
+                            <h2>Incident Details</h2>
+                            <p>Review the selected emergency incident.</p>
+                        </div>
+                
+                        <span class="incident-status">
+                            {{ selected_alert.status | upper }}
+                        </span>
+                    </div>
+                
+                    <h3>{{ selected_alert.title }}</h3>
+                
+                    <p>{{ selected_alert.description or "No additional description." }}</p>
+                
+                    <div class="incident-meta">
+                        <span>ASTRONAUT: {{ selected_alert.astronaut_id }}</span>
+                        <span>SOURCE: {{ selected_alert.source }}</span>
+                        <span>SEVERITY: {{ selected_alert.severity | upper }}</span>
+                        <span>CREATED: {{ selected_alert.created_at }}</span>
+                    </div>
+                
+                    {% if selected_alert.status == "Active" %}
+                
+                    <form
+                        method="POST"
+                        action="/emergency-response/resolve-alert"
+                        class="form-actions"
+                    >
+                        <input
+                            type="hidden"
+                            name="alert_id"
+                            value="{{ selected_alert.id }}"
+                        >
+                
+                        <button type="submit" class="action-button">
+                            Mark as Solved
+                        </button>
+                    </form>
+                
+                    {% else %}
+                
+                    <p class="form-message success-message">
+                        This incident has already been resolved.
+                    </p>
+                
+                    {% endif %}
+                    <br>
+                    <a href="/emergency-response" class="action-button ghost">
+                        Back to Incidents
+                    </a>
+                
+                </div>
+                
+                {% endif %}
+
+                <!-- INCIDENT HISTORY -->
+                <div class="severity-panel history-panel">
+
+                    <div class="emergency-section-heading">
+
+                        <div>
+                            <span>RECORD ARCHIVE</span>
+                            <h2>Incident History</h2>
+                        </div>
+
+                        <span class="incident-count">
+                            {{ resolved_alerts | length }} RESOLVED
+                        </span>
+
+                    </div>
+
+                    <div class="history-list">
+
+                        {% for alert in resolved_alerts %}
+
+                        <div class="history-item">
+
+                            <div>
+                                <strong>{{ alert.title }}</strong>
+                                <p>{{ alert.astronaut_id }} &bull; {{ alert.created_at }}</p>
+                            </div>
+
+                            <span>RESOLVED</span>
+
+                        </div>
+
+                        {% else %}
+
+                        <p class="history-empty">
+                            No resolved incidents recorded yet.
+                        </p>
+
+                        {% endfor %}
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+        <!-- DEFAULT CORE CONTENT -->
+        {% else %}
+
+            <div class="content-panel">
+                <h2>{{ content_title | default("Core Information") }}</h2>
+                <p>{{ content_description | default("Core information will appear here.") }}</p>
+            </div>
+
+        {% endif %}
+
+    {% endblock %}
+
+</div>
+
+{% endblock %}
