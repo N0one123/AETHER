@@ -273,3 +273,97 @@ setInterval(refreshDashboard, 5000);
         });
     });
 })();
+
+
+/* ==========================================
+   AETHER — RADIATION DOSE PROJECTION
+========================================== */
+
+(() => {
+    const projection = document.getElementById("radiation-projection");
+
+    if (!projection) return;
+
+    const astronautSelect = projection.querySelector("[data-radiation-astronaut]");
+    const horizon = projection.querySelector("[data-radiation-horizon]");
+    const monthsLabel = projection.querySelector("[data-radiation-months]");
+    const baselineLabel = projection.querySelector("[data-radiation-baseline]");
+    const doseLabel = projection.querySelector("[data-radiation-projected-dose]");
+    const severityLabel = projection.querySelector("[data-radiation-projected-severity]");
+
+    if (
+        !astronautSelect ||
+        !horizon ||
+        !monthsLabel ||
+        !baselineLabel ||
+        !doseLabel ||
+        !severityLabel
+    ) {
+        if (!astronautSelect && !horizon) return;
+        console.error("AETHER: Radiation projection controls are incomplete.");
+        return;
+    }
+
+    const doseIncreasePerMonth = Number(projection.dataset.doseIncreasePerMonth);
+    const maxMonths = Number(projection.dataset.maxMonths);
+    const thresholds = {
+        medium: Number(projection.dataset.thresholdMedium),
+        high: Number(projection.dataset.thresholdHigh),
+        critical: Number(projection.dataset.thresholdCritical)
+    };
+    const numberFormat = new Intl.NumberFormat(undefined, {
+        maximumFractionDigits: 1
+    });
+
+    const updateProjection = () => {
+        const selectedOption = astronautSelect.selectedOptions[0];
+        const baseline = Number(selectedOption?.dataset.baseline);
+        const months = Number(horizon.value);
+
+        if (
+            !Number.isFinite(doseIncreasePerMonth) ||
+            !Number.isFinite(maxMonths) ||
+            !Number.isFinite(baseline) ||
+            !Number.isFinite(months) ||
+            baseline < 0 ||
+            months < 0 ||
+            months > maxMonths ||
+            !Object.values(thresholds).every(Number.isFinite)
+        ) {
+            console.error("AETHER: Radiation projection inputs are invalid.");
+            return;
+        }
+
+        const projectedDose = baseline + months * doseIncreasePerMonth;
+        let severity = null;
+
+        if (projectedDose >= thresholds.critical) {
+            severity = "critical";
+        } else if (projectedDose >= thresholds.high) {
+            severity = "high";
+        } else if (projectedDose >= thresholds.medium) {
+            severity = "medium";
+        }
+
+        baselineLabel.textContent = numberFormat.format(baseline);
+        doseLabel.textContent = numberFormat.format(projectedDose);
+        monthsLabel.textContent = months === 0
+            ? "Present"
+            : `${months} months ahead${months === 24 ? " (2 years)" : ""}`;
+
+        severityLabel.className = "health-rule-severity";
+        severityLabel.textContent = severity
+            ? `${severity.toUpperCase()} (PROJECTED)`
+            : "No alert projected";
+
+        if (severity) {
+            severityLabel.classList.add(`severity-tag-${severity}`);
+        } else {
+            severityLabel.classList.add("is-disabled");
+        }
+    };
+
+    astronautSelect.addEventListener("change", updateProjection);
+    horizon.addEventListener("input", updateProjection);
+    updateProjection();
+})();

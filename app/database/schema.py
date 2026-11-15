@@ -54,6 +54,20 @@ def initialise_database():
                     ON DELETE CASCADE
             );
 
+            CREATE TABLE IF NOT EXISTS radiation_measurements (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                astronaut_id TEXT NOT NULL,
+                dose_msv REAL NOT NULL CHECK (dose_msv >= 0),
+                source TEXT NOT NULL DEFAULT 'manual_entry',
+                notes TEXT,
+                timestamp TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+                FOREIGN KEY (astronaut_id)
+                    REFERENCES astronauts(id)
+                    ON DELETE CASCADE
+            );
+
             CREATE TABLE IF NOT EXISTS health_monitoring_rules (
                 rule_id TEXT PRIMARY KEY,
                 measurement TEXT NOT NULL,
@@ -156,6 +170,12 @@ def initialise_database():
 
             CREATE INDEX IF NOT EXISTS idx_health_simulated
                 ON health_measurements(simulated);
+
+            CREATE INDEX IF NOT EXISTS idx_radiation_astronaut
+                ON radiation_measurements(astronaut_id);
+
+            CREATE INDEX IF NOT EXISTS idx_radiation_timestamp
+                ON radiation_measurements(timestamp);
 
             CREATE INDEX IF NOT EXISTS idx_alerts_status
                 ON alerts(status);

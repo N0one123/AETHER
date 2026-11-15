@@ -28,6 +28,12 @@ Monitors astronaut health measurements, identifies abnormal readings using monit
 
 Manages emergency alerts, tracks their severity and status, and maintains incident records. It allows active alerts to be monitored and resolved incidents to remain available for historical reference.
 
+Radiation Monitoring is a separate mission-support page, not a Core. It stores
+accumulated dose readings in mSv and can create Emergency Response alerts.
+Its fast-forward slider shows an illustrative projection using an assumed
+increase of 50 mSv per six months, based on the astronaut's latest recorded
+dose. Projections are not saved as readings and do not create alerts.
+
 ### **Website Features**
 
 AETHER provides a central Mission Control dashboard with an overview of registered astronauts, active alerts, recorded measurements, and core-system statuses.
@@ -42,6 +48,8 @@ The website includes:
 - Health monitoring and measurement history.
 - Independently editable medium, high, and critical Health rules for heart
   rate, blood oxygen, body temperature, respiratory rate, and blood pressure.
+- Radiation dose recording, threshold alerts, and a present-to-two-year
+  projection slider.
 - Emergency alert creation and management.
 - Simulated data for demonstrations.
 - Core-system status monitoring.
@@ -101,9 +109,8 @@ AETHER's health-monitoring and evaluation concepts are informed by NASA research
 
 1. NASA — [The Human Body in Space](https://www.nasa.gov/humans-in-space/the-human-body-in-space/)
 2. NASA — [Space Adaptation Sickness: NASA-STD-3001 Medical Technical Brief](https://www.nasa.gov/wp-content/uploads/2025/09/ochmo-mtb-004-space-adaptation-sickness-sas.pdf)
-3. NASA — [Open Science Data Repository](https://osdr.nasa.gov/bio/repo/)
 
-These resources provide scientific context for understanding physiological changes, health concerns, and biological research associated with human spaceflight.
+These resources provide scientific context for understanding physiological changes and health concerns associated with human spaceflight.
 
 ### **Important Disclaimer**
 
@@ -113,6 +120,12 @@ Health monitoring defaults are configurable examples, not mission-specific
 medical guidance. Each severity band is stored as a separate editable rule;
 thresholds should be confirmed against the intended mission's medical
 protocols.
+
+Radiation alert cutoffs (200 mSv medium, 300 mSv high, and 400 mSv critical)
+and the 50 mSv-per-six-month projection are prototype assumptions, not
+operational or medical guidance. Validate limits and exposure models against
+the applicable mission radiation-safety protocols. Forecast-only readings
+never generate persistent alerts.
 
 Simulated measurements are intended exclusively for demonstrations and must not be interpreted as actual astronaut health data.
 

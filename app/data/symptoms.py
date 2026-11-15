@@ -192,34 +192,6 @@ NASA_SOURCES = {
         ],
     },
 
-    "osdr_information": {
-        "name": "NASA — Open Science Data Repository Information",
-        "url": (
-            "https://science.nasa.gov/biological-physical/data/osdr/"
-        ),
-        "type": "NASA data resource",
-        "supports": [
-            "biological and physiological research data discovery",
-        ],
-    },
-
-    "osdr": {
-        "name": "NASA Open Science Data Repository",
-        "url": "https://osdr.nasa.gov/bio/repo/",
-        "type": "NASA data repository",
-        "supports": [
-            "research dataset discovery",
-        ],
-    },
-
-    "life_sciences": {
-        "name": "NASA Life Sciences Portal",
-        "url": "https://nlsp.nasa.gov/",
-        "type": "NASA data resource",
-        "supports": [
-            "space life sciences research discovery",
-        ],
-    },
 }
 
 

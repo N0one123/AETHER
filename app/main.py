@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 import sqlite3
 from urllib.parse import parse_qs
 from fastapi.responses import RedirectResponse
@@ -17,11 +18,20 @@ from app.services.tracking_page import get_tracking_page_data
 from app.services.evaluation_page import get_evaluation_page_data
 from app.services.health_page import get_health_page_data
 from app.services.emergency_page import get_emergency_page_data
+from app.services import radiation
+from app.database.schema import initialise_database
+
+
+@asynccontextmanager
+async def lifespan(_app):
+    initialise_database()
+    yield
 
 app = FastAPI(
     title="AETHER",
     description="Astronaut Evaluation Tracking Health and Emergency Response",
-    version="0.1.0"
+    version="0.1.0",
+    lifespan=lifespan
 )
 
 cores = [
@@ -446,6 +456,74 @@ def set_health_default_rules(enabled: str = Form(...)):
             url="/health?message=defaults_failed",
             status_code=303
         )
+
+
+@app.get("/radiation")
+def radiation_page(request: Request):
+    data = radiation.get_radiation_page_data(
+        selected_astronaut_id=request.query_params.get("astronaut_id")
+    )
+    messages = {
+        "measurement_recorded": "Radiation dose reading recorded.",
+        "alert_created": "Dose reading recorded and a radiation alert was created.",
+        "alert_failed": (
+            "Dose reading was recorded, but Emergency Response could not "
+            "create its alert."
+        ),
+        "invalid_measurement": (
+            "Dose reading is invalid or the astronaut does not exist."
+        ),
+        "record_failed": "Could not record the dose reading. Check the application logs."
+    }
+
+    return templates.TemplateResponse(
+        request=request,
+        name="core_page.html",
+        context={
+            "active_page": "radiation",
+            "page_message": messages.get(
+                request.query_params.get("message")
+            ),
+            **data
+        }
+    )
+
+
+@app.post("/radiation/record-measurement")
+def record_radiation_measurement(
+    astronaut_id: str = Form(...),
+    dose_msv: float = Form(...),
+    source: str = Form("manual_entry"),
+    notes: str = Form("")
+):
+    try:
+        result = radiation.process_measurement(
+            astronaut_id=astronaut_id,
+            dose_msv=dose_msv,
+            source=source,
+            notes=notes
+        )
+
+        if result["alert_error"]:
+            print("RADIATION ALERT ERROR:", result["alert_error"])
+            message = "alert_failed"
+        elif result["alert"]:
+            message = "alert_created"
+        else:
+            message = "measurement_recorded"
+
+    except ValueError as error:
+        print("RADIATION VALIDATION ERROR:", str(error))
+        message = "invalid_measurement"
+
+    except Exception as error:
+        print("RADIATION PROCESSING ERROR:", repr(error))
+        message = "record_failed"
+
+    return RedirectResponse(
+        url=f"/radiation?message={message}",
+        status_code=303
+    )
 
 
 @app.get("/emergency-response")

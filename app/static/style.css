@@ -3031,6 +3031,7 @@ tbody tr:last-child td { border-bottom: 0; }
 .dashboard > *,
 .core-content > *,
 .health-overview > *,
+.radiation-overview > *,
 .emergency-overview > *,
 .metrics-grid > *,
 .dashboard-metrics > *,
@@ -3112,6 +3113,84 @@ tbody tr:last-child td { border-bottom: 0; }
     50% { opacity: 1; }
 }
 
+.radiation-overview {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px;
+}
+
+.radiation-overview > .form-message,
+.radiation-history-panel {
+    grid-column: 1 / -1;
+}
+
+.radiation-projection label,
+.radiation-projection select {
+    display: block;
+    margin-bottom: 10px;
+}
+
+.radiation-projection select {
+    width: 100%;
+}
+
+.radiation-projection input[type="range"] {
+    display: block;
+    width: 100%;
+    margin: 14px 0 8px;
+    accent-color: var(--accent);
+}
+
+.radiation-projection output {
+    color: var(--text-soft);
+    font-family: var(--font-mono);
+    font-size: 12px;
+}
+
+.radiation-projection-result {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 18px 28px;
+    margin-top: 20px;
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: rgba(255, 255, 255, 0.025);
+}
+
+.radiation-projection-result > div {
+    display: grid;
+    gap: 5px;
+}
+
+.radiation-projection-result > div > span {
+    color: var(--muted);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.radiation-projection-result strong {
+    font-family: var(--font-mono);
+    font-size: 19px;
+}
+
+.radiation-projection-note,
+.radiation-threshold-note {
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.6;
+}
+
+.radiation-projection-note {
+    margin: 12px 0 0;
+}
+
+.radiation-threshold-note {
+    margin: 18px 0 0;
+}
+
 /* ---------------------------------------------------------------------
    20 · RESPONSIVE
    --------------------------------------------------------------------- */
@@ -3124,6 +3203,7 @@ tbody tr:last-child td { border-bottom: 0; }
 
 @media (max-width: 1100px) {
     .health-overview { grid-template-columns: 1fr; }
+    .radiation-overview { grid-template-columns: 1fr; }
     .tracking-stream-grid { grid-template-columns: 1fr; }
     .severity-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .astronaut-form { grid-template-columns: 1fr 1fr; }

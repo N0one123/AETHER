@@ -410,6 +410,205 @@
             {% endfor %}
 
 
+        <!-- RADIATION MONITORING -->
+        {% elif active_page == "radiation" %}
+
+            <div class="radiation-overview">
+
+                {% if page_message %}
+                <div class="form-message">{{ page_message }}</div>
+                {% endif %}
+
+                <section
+                    class="content-panel radiation-projection"
+                    id="radiation-projection"
+                    data-dose-increase-per-month="{{ projection_rate_per_month }}"
+                    data-threshold-medium="{{ thresholds.medium }}"
+                    data-threshold-high="{{ thresholds.high }}"
+                    data-threshold-critical="{{ thresholds.critical }}"
+                    data-max-months="{{ max_projection_months }}"
+                >
+                    <div class="section-header">
+                        <div>
+                            <h2>Fast-forward Dose Projection</h2>
+                            <p>
+                                Illustrative projection at 50 mSv per six months.
+                                Forecasts are not measurements and do not create alerts.
+                            </p>
+                        </div>
+                    </div>
+
+                    {% if astronauts %}
+                    <label for="radiation-projection-astronaut">Astronaut</label>
+                    <select id="radiation-projection-astronaut" data-radiation-astronaut>
+                        {% for person in astronauts %}
+                        <option
+                            value="{{ person.id }}"
+                            data-baseline="{{ dose_baselines[person.id] }}"
+                            {% if person.id == selected_astronaut_id %}selected{% endif %}
+                        >{{ person.name }} ({{ person.id }})</option>
+                        {% endfor %}
+                    </select>
+
+                    <label for="radiation-fast-forward">Timeline</label>
+                    <input
+                        type="range"
+                        id="radiation-fast-forward"
+                        min="0"
+                        max="{{ max_projection_months }}"
+                        step="1"
+                        value="0"
+                        data-radiation-horizon
+                    >
+                    <output for="radiation-fast-forward" data-radiation-months>
+                        Present
+                    </output>
+
+                    <div class="radiation-projection-result" aria-live="polite">
+                        <div>
+                            <span>Recorded baseline</span>
+                            <strong><span data-radiation-baseline>{{ selected_baseline_msv }}</span> mSv</strong>
+                        </div>
+                        <div>
+                            <span>Projected dose</span>
+                            <strong><span data-radiation-projected-dose>{{ selected_baseline_msv }}</span> mSv</strong>
+                        </div>
+                        <span
+                            class="health-rule-severity"
+                            data-radiation-projected-severity
+                        >No alert projected</span>
+                    </div>
+                    <p class="radiation-projection-note">
+                        Forecast only. It will not be saved or sent to Emergency Response.
+                    </p>
+                    {% else %}
+                    <p class="empty-state">
+                        Register an astronaut before creating dose readings or projections.
+                    </p>
+                    {% endif %}
+                </section>
+
+                <section class="content-panel radiation-entry-panel">
+                    <div class="section-header">
+                        <div>
+                            <h2>Record Accumulated Dose</h2>
+                            <p>Enter the astronaut's recorded dose in mSv.</p>
+                        </div>
+                    </div>
+
+                    {% if astronauts %}
+                    <form
+                        method="POST"
+                        action="/radiation/record-measurement"
+                        class="health-measurement-form"
+                    >
+                        <label for="radiation-astronaut-id">Astronaut</label>
+                        <select id="radiation-astronaut-id" name="astronaut_id" required>
+                            <option value="" disabled selected>Select astronaut</option>
+                            {% for person in astronauts %}
+                            <option value="{{ person.id }}">{{ person.name }} ({{ person.id }})</option>
+                            {% endfor %}
+                        </select>
+
+                        <label for="radiation-dose">Accumulated dose (mSv)</label>
+                        <input
+                            type="number"
+                            id="radiation-dose"
+                            name="dose_msv"
+                            min="0"
+                            step="any"
+                            placeholder="Enter dose in mSv"
+                            required
+                        >
+
+                        <label for="radiation-source">Reading source</label>
+                        <input
+                            type="text"
+                            id="radiation-source"
+                            name="source"
+                            value="manual_entry"
+                            required
+                        >
+
+                        <label for="radiation-notes">Notes (optional)</label>
+                        <input
+                            type="text"
+                            id="radiation-notes"
+                            name="notes"
+                            placeholder="Exposure event or context"
+                        >
+
+                        <div class="form-actions">
+                            <button type="submit" class="action-button">
+                                Record Dose
+                            </button>
+                        </div>
+                    </form>
+                    {% endif %}
+
+                    <p class="radiation-threshold-note">
+                        Example alert bands: medium at 200 mSv, high at 300 mSv,
+                        and critical at 400 mSv. Confirm operational limits with
+                        mission medical protocols.
+                    </p>
+                </section>
+
+                <section class="content-panel radiation-history-panel">
+                    <div class="section-header">
+                        <div>
+                            <h2>Radiation Dose History</h2>
+                            <p>Recorded accumulated-dose readings. Forecasts are excluded.</p>
+                        </div>
+                        <span>{{ measurements | length }} recent records</span>
+                    </div>
+
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Astronaut</th>
+                                    <th>Dose</th>
+                                    <th>Severity</th>
+                                    <th>Source</th>
+                                    <th>Notes</th>
+                                    <th>Timestamp</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in measurements %}
+                                <tr>
+                                    <td>{{ item.astronaut_name }} ({{ item.astronaut_id }})</td>
+                                    <td>{{ item.dose_msv }} mSv</td>
+                                    <td>
+                                        {% if item.dose_msv >= thresholds.critical %}
+                                        <span class="health-rule-severity severity-tag-critical">CRITICAL</span>
+                                        {% elif item.dose_msv >= thresholds.high %}
+                                        <span class="health-rule-severity severity-tag-high">HIGH</span>
+                                        {% elif item.dose_msv >= thresholds.medium %}
+                                        <span class="health-rule-severity severity-tag-medium">MEDIUM</span>
+                                        {% else %}
+                                        <span class="health-rule-status is-disabled">NORMAL</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ item.source }}</td>
+                                    <td>{{ item.notes or "—" }}</td>
+                                    <td>{{ item.timestamp }}</td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="6" class="table-empty">
+                                        No radiation dose readings recorded yet.
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+            </div>
+
+
         <!-- HEALTH MONITORING -->
         {% elif active_page == "health" %}
 
