@@ -157,21 +157,32 @@
             
                 <form method="POST" action="/evaluation/assess">
             
-                    <div class="symptom-grid">
-                        {% for symptom in symptoms %}
-                        <label class="symptom-option">
-                            <input
-                                type="checkbox"
-                                name="selected_symptoms"
-                                value="{{ symptom.id }}"
-                                {% if assessment and symptom.id in
-                                    (assessment.selected_symptoms | map(attribute='id') | list) %}
-                                    checked
-                                {% endif %}
-                            >
-            
-                            <span>{{ symptom.name }}</span>
-                        </label>
+                    <div class="symptom-categories">
+                        {% for category in symptom_categories %}
+                        <details class="symptom-category">
+                            <summary>
+                                <span>{{ category.name }}</span>
+                                <span class="category-symptom-count">
+                                    {{ category.symptoms | length }} symptoms
+                                </span>
+                            </summary>
+                            <div class="symptom-grid">
+                                {% for symptom in category.symptoms %}
+                                <label class="symptom-option">
+                                    <input
+                                        type="checkbox"
+                                        name="selected_symptoms"
+                                        value="{{ symptom.id }}"
+                                        {% if assessment and symptom.id in
+                                            (assessment.selected_symptoms | map(attribute='id') | list) %}
+                                            checked
+                                        {% endif %}
+                                    >
+                                    <span>{{ symptom.name }}</span>
+                                </label>
+                                {% endfor %}
+                            </div>
+                        </details>
                         {% endfor %}
                     </div>
             
@@ -207,6 +218,27 @@
                     <span><strong>{{ assessment.total_selected }}</strong> selected symptoms</span>
                     <span><strong>{{ assessment.total_matches }}</strong> research associations</span>
                 </div>
+
+                {% if assessment.matched_conditions %}
+                <div class="content-panel">
+                    <div class="section-header">
+                        <h3>What to do?</h3>
+                        <span class="simulated-badge">SIMULATED ONLY</span>
+                    </div>
+                    <p>
+                        Simulated suggestions based on the selected symptoms.
+                        They are not medical advice or a diagnosis.
+                    </p>
+                    {% for condition in assessment.matched_conditions %}
+                    <h4>{{ condition.name }} association</h4>
+                    <ul>
+                        {% for suggestion in condition.simulated_suggestions %}
+                        <li><strong>{{ suggestion.label }}:</strong> {{ suggestion.text }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% endfor %}
+                </div>
+                {% endif %}
             
                 {% if assessment.matched_conditions %}
             
@@ -263,7 +295,7 @@
                         {% endif %}
             
                     {% if condition.limitations %}
-                        <h4>What to do? (FROM DATA ONLY)</h4>
+                        <h4>Limitations</h4>
                     
                         {% if condition.limitations is string %}
                             <p>{{ condition.limitations }}</p>

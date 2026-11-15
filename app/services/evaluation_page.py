@@ -7,6 +7,7 @@ Prepares symptom evaluation data for the shared core interface.
 
 from app.cores import evaluation
 from app.engines.evaluation_engine import get_engine_status
+from app.data.symptoms import get_all_conditions
 
 
 def get_evaluation_page_data(selected_symptoms=None):
@@ -17,6 +18,19 @@ def get_evaluation_page_data(selected_symptoms=None):
     # The Evaluation Core returns a dictionary keyed by symptom ID.
     symptom_catalogue = evaluation.get_symptoms()
     symptoms = list(symptom_catalogue.values())
+
+    symptom_categories = {}
+    for condition in get_all_conditions():
+        for symptom_id in condition["symptoms"]:
+            symptom_categories.setdefault(
+                symptom_id,
+                condition["category"]
+            )
+
+    grouped_symptoms = {}
+    for symptom in symptoms:
+        category = symptom_categories.get(symptom["id"], "Other")
+        grouped_symptoms.setdefault(category, []).append(symptom)
 
     # Run assessment only when symptoms have been submitted.
     assessment = None
@@ -62,6 +76,10 @@ def get_evaluation_page_data(selected_symptoms=None):
         ),
 
         "symptoms": symptoms,
+        "symptom_categories": [
+            {"name": name, "symptoms": category_symptoms}
+            for name, category_symptoms in grouped_symptoms.items()
+        ],
         "assessment": assessment,
 
         "assessment_note": (

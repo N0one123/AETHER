@@ -1636,6 +1636,59 @@ tbody tr:last-child td { border-bottom: 0; }
     margin-bottom: 20px;
 }
 
+.symptom-categories {
+    display: grid;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.symptom-category {
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--panel-inset);
+}
+
+.symptom-category > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    color: var(--text);
+    font-weight: 600;
+    cursor: pointer;
+    list-style: none;
+}
+
+.symptom-category > summary::-webkit-details-marker { display: none; }
+
+.symptom-category > summary::after {
+    width: 8px;
+    height: 8px;
+    border-right: 1.5px solid var(--accent);
+    border-bottom: 1.5px solid var(--accent);
+    content: "";
+    transform: rotate(45deg);
+    transition: transform var(--t-fast) ease;
+}
+
+.symptom-category[open] > summary::after {
+    transform: rotate(225deg);
+}
+
+.category-symptom-count {
+    margin-left: auto;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 400;
+}
+
+.symptom-category .symptom-grid {
+    padding: 0 14px 4px;
+}
+
 .symptom-option {
     position: relative;
     display: flex;
