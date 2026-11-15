@@ -683,7 +683,7 @@ def evaluate_measurement(record):
 # ---------------------------------------------------------
 
 def trigger_emergency_response(record, evaluation):
-    """Create an alert for an abnormal measurement."""
+    """Create an incident for each abnormal Health measurement."""
 
     if not evaluation["abnormal"]:
         return None
@@ -713,34 +713,6 @@ def trigger_emergency_response(record, evaluation):
         f"Details: {evaluation.get('description') or 'No additional details.'}"
     )
 
-    # Avoid creating another active alert for the same
-    # astronaut, measurement and data mode.
-
-    with get_connection() as connection:
-        existing = connection.execute(
-            """
-            SELECT id
-            FROM alerts
-            WHERE astronaut_id = ?
-              AND title = ?
-              AND source = ?
-              AND status = 'Active'
-            LIMIT 1
-            """,
-            (
-                record["astronaut_id"],
-                title,
-                source
-            )
-        ).fetchone()
-
-    if existing:
-        return {
-            "created": False,
-            "duplicate": True,
-            "alert_id": existing["id"]
-        }
-
     alert = emergency_response.create_alert(
         astronaut_id=record["astronaut_id"],
         title=title,
@@ -754,6 +726,25 @@ def trigger_emergency_response(record, evaluation):
         "duplicate": False,
         "alert_id": alert["id"]
     }
+
+
+def resolve_health_alerts_for_measurement(record):
+    """Resolve matching Health alerts when a monitored value returns in range."""
+
+    simulated = record["simulated"]
+    title = (
+        f"{'[SIMULATED] ' if simulated else ''}"
+        f"{record['measurement'].replace('_', ' ').title()} "
+        "outside configured range"
+    )
+    alert_source = "health_simulation" if simulated else "health"
+
+    return emergency_response.resolve_matching_health_alerts(
+        astronaut_id=record["astronaut_id"],
+        title=title,
+        alert_source=alert_source,
+        measurement_source=record["source"]
+    )
 
 
 # ---------------------------------------------------------
@@ -773,6 +764,7 @@ def process_measurement(record):
 
     alert = None
     alert_error = None
+    resolved_alerts = 0
 
     if evaluation["abnormal"]:
         try:
@@ -787,10 +779,18 @@ def process_measurement(record):
             # pretending that the alert was created.
             alert_error = str(error)
 
+    elif evaluation["monitored"]:
+        try:
+            resolved_alerts = resolve_health_alerts_for_measurement(stored)
+
+        except Exception as error:
+            alert_error = str(error)
+
     return {
         "measurement": stored,
         "evaluation": evaluation,
         "alert": alert,
+        "resolved_alerts": resolved_alerts,
         "alert_error": alert_error
     }
 

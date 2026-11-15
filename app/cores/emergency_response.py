@@ -120,6 +120,42 @@ def resolve_alert(alert_id):
     return cursor.rowcount > 0
 
 
+def resolve_matching_health_alerts(
+    astronaut_id,
+    title,
+    alert_source,
+    measurement_source
+):
+    """Resolve active Health alerts matching one measurement identity."""
+
+    if alert_source not in {"health", "health_simulation"}:
+        raise ValueError("Only Health-generated alerts can be auto-resolved.")
+
+    source_marker = f"Source: {measurement_source}\n"
+
+    with get_connection() as connection:
+        cursor = connection.execute(
+            """
+            UPDATE alerts
+            SET status = 'Resolved',
+                resolved_at = CURRENT_TIMESTAMP
+            WHERE astronaut_id = ?
+              AND title = ?
+              AND source = ?
+              AND status = 'Active'
+              AND instr(COALESCE(description, ''), ?) > 0
+            """,
+            (
+                astronaut_id,
+                title,
+                alert_source,
+                source_marker
+            )
+        )
+
+    return cursor.rowcount
+
+
 def get_statistics():
     """Return emergency response statistics."""
 

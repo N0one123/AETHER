@@ -237,6 +237,7 @@ def health_page(request: Request):
 
         messages = {
             "measurement_recorded": "Measurement successfully recorded.",
+            "health_alerts_resolved": "Measurement is back within its monitoring rule. Matching Health alerts were resolved.",
             "invalid_measurement": "Invalid measurement type.",
             "invalid_data": "Invalid data or astronaut ID. Check your entries.",
             "processing_failed": "Health processing failed. Check the system logs.",
@@ -326,6 +327,13 @@ def record_health_measurement(
 
         elif evaluation["abnormal"]:
             message = "alert_failed"
+
+        elif result["alert_error"]:
+            print("HEALTH ALERT RESOLUTION ERROR:", result["alert_error"])
+            message = "record_failed"
+
+        elif result["resolved_alerts"]:
+            message = "health_alerts_resolved"
 
         else:
             message = "measurement_recorded"
