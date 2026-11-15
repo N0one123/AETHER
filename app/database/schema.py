@@ -55,7 +55,8 @@ def initialise_database():
             );
 
             CREATE TABLE IF NOT EXISTS health_monitoring_rules (
-                measurement TEXT PRIMARY KEY,
+                rule_id TEXT PRIMARY KEY,
+                measurement TEXT NOT NULL,
                 minimum REAL,
                 maximum REAL,
                 severity TEXT NOT NULL,
@@ -66,14 +67,16 @@ def initialise_database():
 
             CREATE TABLE IF NOT EXISTS health_default_rule_state (
                 id INTEGER PRIMARY KEY CHECK (id = 1),
-                enabled INTEGER NOT NULL DEFAULT 0
+                enabled INTEGER NOT NULL DEFAULT 0,
+                rules_version INTEGER NOT NULL DEFAULT 3
             );
 
             INSERT OR IGNORE INTO health_default_rule_state (id, enabled)
             VALUES (1, 0);
 
             CREATE TABLE IF NOT EXISTS health_default_rule_backups (
-                measurement TEXT PRIMARY KEY,
+                rule_id TEXT PRIMARY KEY,
+                measurement TEXT NOT NULL,
                 had_previous INTEGER NOT NULL,
                 minimum REAL,
                 maximum REAL,
@@ -162,4 +165,135 @@ def initialise_database():
 
         """)
 
+        _migrate_health_monitoring_rules(connection)
+        _migrate_health_default_rule_backups(connection)
+
+        state_columns = {
+            row["name"]
+            for row in connection.execute(
+                "PRAGMA table_info(health_default_rule_state)"
+            ).fetchall()
+        }
+
+        if "rules_version" not in state_columns:
+            connection.execute(
+                """
+                ALTER TABLE health_default_rule_state
+                ADD COLUMN rules_version INTEGER NOT NULL DEFAULT 1
+                """
+            )
+
     return True
+
+
+def _migrate_health_monitoring_rules(connection):
+    """Give monitoring rules independent IDs while preserving existing rows."""
+
+    columns = {
+        row["name"]
+        for row in connection.execute(
+            "PRAGMA table_info(health_monitoring_rules)"
+        ).fetchall()
+    }
+
+    if "rule_id" in columns:
+        if "measurement" not in columns:
+            connection.execute(
+                """
+                ALTER TABLE health_default_rule_backups
+                ADD COLUMN measurement TEXT
+                """
+            )
+            connection.execute(
+                """
+                UPDATE health_default_rule_backups
+                SET measurement = COALESCE(
+                    (
+                        SELECT measurement
+                        FROM health_monitoring_rules
+                        WHERE health_monitoring_rules.rule_id =
+                              health_default_rule_backups.rule_id
+                    ),
+                    rule_id
+                )
+                WHERE measurement IS NULL
+                """
+            )
+        return
+
+    connection.execute(
+        "ALTER TABLE health_monitoring_rules "
+        "RENAME TO health_monitoring_rules_legacy"
+    )
+    connection.execute(
+        """
+        CREATE TABLE health_monitoring_rules (
+            rule_id TEXT PRIMARY KEY,
+            measurement TEXT NOT NULL,
+            minimum REAL,
+            maximum REAL,
+            severity TEXT NOT NULL,
+            description TEXT,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    connection.execute(
+        """
+        INSERT INTO health_monitoring_rules (
+            rule_id, measurement, minimum, maximum, severity,
+            description, enabled, updated_at
+        )
+        SELECT measurement, measurement, minimum, maximum, severity,
+               description, enabled, updated_at
+        FROM health_monitoring_rules_legacy
+        """
+    )
+    connection.execute("DROP TABLE health_monitoring_rules_legacy")
+
+
+def _migrate_health_default_rule_backups(connection):
+    """Key saved custom rules by rule ID after the rules-table migration."""
+
+    columns = {
+        row["name"]
+        for row in connection.execute(
+            "PRAGMA table_info(health_default_rule_backups)"
+        ).fetchall()
+    }
+
+    if "rule_id" in columns:
+        return
+
+    connection.execute(
+        "ALTER TABLE health_default_rule_backups "
+        "RENAME TO health_default_rule_backups_legacy"
+    )
+    connection.execute(
+        """
+        CREATE TABLE health_default_rule_backups (
+            rule_id TEXT PRIMARY KEY,
+            measurement TEXT NOT NULL,
+            had_previous INTEGER NOT NULL,
+            minimum REAL,
+            maximum REAL,
+            severity TEXT,
+            description TEXT,
+            enabled INTEGER,
+            updated_at TEXT
+        )
+        """
+    )
+    connection.execute(
+        """
+        INSERT INTO health_default_rule_backups (
+            rule_id, measurement, had_previous, minimum, maximum, severity,
+            description, enabled, updated_at
+        )
+        SELECT measurement, measurement, had_previous, minimum, maximum, severity,
+               description, enabled, updated_at
+        FROM health_default_rule_backups_legacy
+        """
+    )
+    connection.execute("DROP TABLE health_default_rule_backups_legacy")

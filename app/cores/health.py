@@ -16,8 +16,9 @@ Synthetic measurements are stored separately from Tracking's
 historical analysis workflow.
 """
 
-import math
 from datetime import datetime, timezone
+import math
+from uuid import uuid4
 
 from app.database.connection import get_connection
 from app.cores import emergency_response
@@ -33,68 +34,103 @@ ALLOWED_SEVERITIES = {
     "critical"
 }
 
-DEFAULT_MONITORING_RULES = (
-    {
-        "measurement": "heart_rate",
-        "minimum": 50,
-        "maximum": 100,
-        "severity": "medium",
-        "description": (
-            "Baseline heart-rate range (bpm); confirm thresholds "
-            "against mission medical protocols."
-        )
+DEFAULT_RULES_VERSION = 3
+
+DEFAULT_SEVERITY_BANDS = {
+    "heart_rate": {
+        "label": "Heart rate",
+        "unit": "bpm",
+        "bands": {
+            "medium": (60, 100),
+            "high": (50, 130),
+            "critical": (40, 150)
+        }
     },
-    {
-        "measurement": "blood_oxygen",
-        "minimum": 90,
-        "maximum": None,
-        "severity": "high",
-        "description": (
-            "Alert when blood oxygen falls below 90%; confirm thresholds "
-            "against mission medical protocols."
-        )
+    "blood_oxygen": {
+        "label": "Blood oxygen",
+        "unit": "%",
+        "bands": {
+            "medium": (90, None),
+            "high": (85, None),
+            "critical": (80, None)
+        }
     },
-    {
-        "measurement": "body_temperature",
-        "minimum": 35,
-        "maximum": 38,
-        "severity": "high",
-        "description": (
-            "Baseline body-temperature range in °C; confirm thresholds "
-            "against mission medical protocols."
-        )
+    "body_temperature": {
+        "label": "Body temperature",
+        "unit": "°C",
+        "bands": {
+            "medium": (35, 38),
+            "high": (34, 39),
+            "critical": (32, 40)
+        }
     },
-    {
-        "measurement": "respiratory_rate",
-        "minimum": 8,
-        "maximum": 20,
-        "severity": "medium",
-        "description": (
-            "Baseline respiratory-rate range (breaths/min); confirm "
-            "thresholds against mission medical protocols."
-        )
+    "respiratory_rate": {
+        "label": "Respiratory rate",
+        "unit": "breaths/min",
+        "bands": {
+            "medium": (8, 20),
+            "high": (6, 25),
+            "critical": (4, 30)
+        }
     },
-    {
-        "measurement": "systolic_blood_pressure",
-        "minimum": 90,
-        "maximum": 140,
-        "severity": "high",
-        "description": (
-            "Baseline systolic blood-pressure range (mmHg); confirm "
-            "thresholds against mission medical protocols."
-        )
+    "systolic_blood_pressure": {
+        "label": "Systolic blood pressure",
+        "unit": "mmHg",
+        "bands": {
+            "medium": (90, 140),
+            "high": (80, 160),
+            "critical": (70, 180)
+        }
     },
-    {
-        "measurement": "diastolic_blood_pressure",
-        "minimum": 60,
-        "maximum": 90,
-        "severity": "high",
-        "description": (
-            "Baseline diastolic blood-pressure range (mmHg); confirm "
-            "thresholds against mission medical protocols."
-        )
+    "diastolic_blood_pressure": {
+        "label": "Diastolic blood pressure",
+        "unit": "mmHg",
+        "bands": {
+            "medium": (60, 90),
+            "high": (50, 100),
+            "critical": (40, 110)
+        }
     }
-)
+}
+
+
+def _build_default_monitoring_rules():
+    """Build one independent configurable default rule per severity band."""
+
+    rules = []
+
+    for measurement, configuration in DEFAULT_SEVERITY_BANDS.items():
+        for severity, (minimum, maximum) in configuration["bands"].items():
+            boundaries = []
+
+            if minimum is not None:
+                boundaries.append(f"below {minimum}")
+            if maximum is not None:
+                boundaries.append(f"above {maximum}")
+
+            rules.append({
+                "rule_id": (
+                    measurement
+                    if severity == "medium"
+                    else f"{measurement}_{severity}"
+                ),
+                "measurement": measurement,
+                "minimum": minimum,
+                "maximum": maximum,
+                "severity": severity,
+                "description": (
+                    f"{severity.title()} alert for "
+                    f"{configuration['label'].lower()} "
+                    f"{' or '.join(boundaries)} "
+                    f"{configuration['unit']}. These example thresholds "
+                    "should be confirmed against mission medical protocols."
+                )
+            })
+
+    return tuple(rules)
+
+
+DEFAULT_MONITORING_RULES = _build_default_monitoring_rules()
 
 
 # ---------------------------------------------------------
@@ -194,12 +230,20 @@ def configure_monitoring_rule(
     severity,
     minimum=None,
     maximum=None,
-    description=""
+    description="",
+    rule_id=None
 ):
-    """Create or update a persistent monitoring rule."""
+    """Create a rule or update one independently identified rule."""
 
     if not isinstance(measurement, str) or not measurement.strip():
         raise ValueError("Measurement name is required.")
+
+    normalized_measurement = measurement.strip().lower()
+
+    if rule_id is not None:
+        if not isinstance(rule_id, str) or not rule_id.strip():
+            raise ValueError("Rule ID is required.")
+        rule_id = rule_id.strip()
 
     if severity not in ALLOWED_SEVERITIES:
         raise ValueError("Invalid severity.")
@@ -227,17 +271,20 @@ def configure_monitoring_rule(
         if minimum >= maximum:
             raise ValueError("Minimum must be below maximum.")
 
+    rule_id = rule_id or uuid4().hex
+
     with get_connection() as connection:
         connection.execute(
             """
             DELETE FROM health_default_rule_backups
-            WHERE measurement = ?
+            WHERE rule_id = ?
             """,
-            (measurement.strip().lower(),)
+            (rule_id,)
         )
         connection.execute(
             """
             INSERT INTO health_monitoring_rules (
+                rule_id,
                 measurement,
                 minimum,
                 maximum,
@@ -246,10 +293,11 @@ def configure_monitoring_rule(
                 enabled,
                 updated_at
             )
-            VALUES (?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
+            VALUES (?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
 
-            ON CONFLICT(measurement)
+            ON CONFLICT(rule_id)
             DO UPDATE SET
+                measurement = excluded.measurement,
                 minimum = excluded.minimum,
                 maximum = excluded.maximum,
                 severity = excluded.severity,
@@ -258,7 +306,8 @@ def configure_monitoring_rule(
                 updated_at = CURRENT_TIMESTAMP
             """,
             (
-                measurement.strip().lower(),
+                rule_id,
+                normalized_measurement,
                 minimum,
                 maximum,
                 severity,
@@ -266,23 +315,26 @@ def configure_monitoring_rule(
             )
         )
 
-    return get_monitoring_rule(measurement)
+    return get_monitoring_rule(rule_id)
 
 
-def get_monitoring_rule(measurement):
+def get_monitoring_rule(rule_id):
     """Retrieve one monitoring rule."""
 
-    if not isinstance(measurement, str) or not measurement.strip():
-        raise ValueError("Measurement name is required.")
+    if not isinstance(rule_id, str) or not rule_id.strip():
+        raise ValueError("Rule ID is required.")
 
     with get_connection() as connection:
         row = connection.execute(
             """
-            SELECT *
-            FROM health_monitoring_rules
-            WHERE measurement = ?
+            SELECT r.*,
+                   (b.rule_id IS NOT NULL) AS is_default
+            FROM health_monitoring_rules AS r
+            LEFT JOIN health_default_rule_backups AS b
+                ON b.rule_id = r.rule_id
+            WHERE r.rule_id = ?
             """,
-            (measurement.strip().lower(),)
+            (rule_id.strip(),)
         ).fetchone()
 
     if row is None:
@@ -290,23 +342,33 @@ def get_monitoring_rule(measurement):
 
     result = dict(row)
     result["enabled"] = bool(result["enabled"])
+    result["is_default"] = bool(result["is_default"])
 
     return result
 
 
-def get_monitoring_rules():
+def get_monitoring_rules(measurement=None):
     """Retrieve all monitoring rules."""
 
+    _ensure_default_monitoring_rules_current()
+
     with get_connection() as connection:
-        rows = connection.execute(
-            """
-            SELECT r.*, (b.measurement IS NOT NULL) AS is_default
+        query = """
+            SELECT r.*, (b.rule_id IS NOT NULL) AS is_default
             FROM health_monitoring_rules AS r
             LEFT JOIN health_default_rule_backups AS b
-                ON b.measurement = r.measurement
-            ORDER BY r.measurement
-            """
-        ).fetchall()
+                ON b.rule_id = r.rule_id
+        """
+        parameters = ()
+
+        if measurement is not None:
+            if not isinstance(measurement, str) or not measurement.strip():
+                raise ValueError("Measurement name is required.")
+            query += " WHERE r.measurement = ?"
+            parameters = (measurement.strip().lower(),)
+
+        query += " ORDER BY r.measurement, r.severity, r.rule_id"
+        rows = connection.execute(query, parameters).fetchall()
 
     results = []
 
@@ -319,26 +381,26 @@ def get_monitoring_rules():
     return results
 
 
-def remove_monitoring_rule(measurement):
+def remove_monitoring_rule(rule_id):
     """Remove a monitoring rule."""
 
-    if not isinstance(measurement, str) or not measurement.strip():
-        raise ValueError("Measurement name is required.")
+    if not isinstance(rule_id, str) or not rule_id.strip():
+        raise ValueError("Rule ID is required.")
 
     with get_connection() as connection:
         cursor = connection.execute(
             """
             DELETE FROM health_monitoring_rules
-            WHERE measurement = ?
+            WHERE rule_id = ?
             """,
-            (measurement.strip().lower(),)
+            (rule_id.strip(),)
         )
         connection.execute(
             """
             DELETE FROM health_default_rule_backups
-            WHERE measurement = ?
+            WHERE rule_id = ?
             """,
-            (measurement.strip().lower(),)
+            (rule_id.strip(),)
         )
 
     return cursor.rowcount > 0
@@ -346,6 +408,8 @@ def remove_monitoring_rule(measurement):
 
 def get_default_monitoring_rules_enabled():
     """Return whether the configurable default rule set is enabled."""
+
+    _ensure_default_monitoring_rules_current()
 
     with get_connection() as connection:
         row = connection.execute(
@@ -359,6 +423,119 @@ def get_default_monitoring_rules_enabled():
     return bool(row["enabled"]) if row else False
 
 
+def _apply_default_monitoring_rules(connection):
+    """Back up pre-existing rules and apply each default rule by its own ID."""
+
+    for rule in DEFAULT_MONITORING_RULES:
+        backup = connection.execute(
+            """
+            SELECT rule_id
+            FROM health_default_rule_backups
+            WHERE rule_id = ?
+            """,
+            (rule["rule_id"],)
+        ).fetchone()
+
+        if backup is None:
+            previous = connection.execute(
+                """
+                SELECT measurement, minimum, maximum, severity, description,
+                       enabled, updated_at
+                FROM health_monitoring_rules
+                WHERE rule_id = ?
+                """,
+                (rule["rule_id"],)
+            ).fetchone()
+
+            if previous:
+                connection.execute(
+                    """
+                    INSERT INTO health_default_rule_backups (
+                        rule_id, measurement, had_previous,
+                        minimum, maximum, severity,
+                        description, enabled, updated_at
+                    )
+                    VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        rule["rule_id"],
+                        previous["measurement"],
+                        previous["minimum"],
+                        previous["maximum"],
+                        previous["severity"],
+                        previous["description"],
+                        previous["enabled"],
+                        previous["updated_at"]
+                    )
+                )
+            else:
+                connection.execute(
+                    """
+                    INSERT INTO health_default_rule_backups (
+                        rule_id, measurement, had_previous
+                    )
+                    VALUES (?, ?, 0)
+                    """,
+                    (rule["rule_id"], rule["measurement"])
+                )
+
+        connection.execute(
+            """
+            INSERT INTO health_monitoring_rules (
+                rule_id, measurement, minimum, maximum, severity,
+                description, enabled, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
+            ON CONFLICT(rule_id)
+            DO UPDATE SET
+                measurement = excluded.measurement,
+                minimum = excluded.minimum,
+                maximum = excluded.maximum,
+                severity = excluded.severity,
+                description = excluded.description,
+                enabled = 1,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            (
+                rule["rule_id"],
+                rule["measurement"],
+                rule["minimum"],
+                rule["maximum"],
+                rule["severity"],
+                rule["description"]
+            )
+        )
+
+
+def _ensure_default_monitoring_rules_current():
+    """Upgrade an already-enabled default set once when its definitions change."""
+
+    with get_connection() as connection:
+        state = connection.execute(
+            """
+            SELECT enabled, rules_version
+            FROM health_default_rule_state
+            WHERE id = 1
+            """
+        ).fetchone()
+
+        if state is None or not state["enabled"]:
+            return
+
+        if state["rules_version"] >= DEFAULT_RULES_VERSION:
+            return
+
+        _apply_default_monitoring_rules(connection)
+        connection.execute(
+            """
+            UPDATE health_default_rule_state
+            SET rules_version = ?
+            WHERE id = 1
+            """,
+            (DEFAULT_RULES_VERSION,)
+        )
+
+
 def set_default_monitoring_rules_enabled(enabled):
     """Enable or remove only rules managed by the default rule set."""
 
@@ -368,7 +545,7 @@ def set_default_monitoring_rules_enabled(enabled):
     with get_connection() as connection:
         current = connection.execute(
             """
-            SELECT enabled
+            SELECT enabled, rules_version
             FROM health_default_rule_state
             WHERE id = 1
             """
@@ -378,74 +555,20 @@ def set_default_monitoring_rules_enabled(enabled):
             raise RuntimeError("Default monitoring rule state is not initialized.")
 
         if bool(current["enabled"]) == enabled:
+            if enabled and current["rules_version"] < DEFAULT_RULES_VERSION:
+                _apply_default_monitoring_rules(connection)
+                connection.execute(
+                    """
+                    UPDATE health_default_rule_state
+                    SET rules_version = ?
+                    WHERE id = 1
+                    """,
+                    (DEFAULT_RULES_VERSION,)
+                )
             return bool(enabled)
 
         if enabled:
-            for rule in DEFAULT_MONITORING_RULES:
-                previous = connection.execute(
-                    """
-                    SELECT minimum, maximum, severity, description,
-                           enabled, updated_at
-                    FROM health_monitoring_rules
-                    WHERE measurement = ?
-                    """,
-                    (rule["measurement"],)
-                ).fetchone()
-
-                if previous:
-                    connection.execute(
-                        """
-                        INSERT INTO health_default_rule_backups (
-                            measurement, had_previous, minimum, maximum,
-                            severity, description, enabled, updated_at
-                        )
-                        VALUES (?, 1, ?, ?, ?, ?, ?, ?)
-                        """,
-                        (
-                            rule["measurement"],
-                            previous["minimum"],
-                            previous["maximum"],
-                            previous["severity"],
-                            previous["description"],
-                            previous["enabled"],
-                            previous["updated_at"]
-                        )
-                    )
-                else:
-                    connection.execute(
-                        """
-                        INSERT INTO health_default_rule_backups (
-                            measurement, had_previous
-                        )
-                        VALUES (?, 0)
-                        """,
-                        (rule["measurement"],)
-                    )
-
-                connection.execute(
-                    """
-                    INSERT INTO health_monitoring_rules (
-                        measurement, minimum, maximum, severity,
-                        description, enabled, updated_at
-                    )
-                    VALUES (?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
-                    ON CONFLICT(measurement)
-                    DO UPDATE SET
-                        minimum = excluded.minimum,
-                        maximum = excluded.maximum,
-                        severity = excluded.severity,
-                        description = excluded.description,
-                        enabled = 1,
-                        updated_at = CURRENT_TIMESTAMP
-                    """,
-                    (
-                        rule["measurement"],
-                        rule["minimum"],
-                        rule["maximum"],
-                        rule["severity"],
-                        rule["description"]
-                    )
-                )
+            _apply_default_monitoring_rules(connection)
         else:
             backups = connection.execute(
                 """
@@ -458,21 +581,22 @@ def set_default_monitoring_rules_enabled(enabled):
                 connection.execute(
                     """
                     DELETE FROM health_monitoring_rules
-                    WHERE measurement = ?
+                    WHERE rule_id = ?
                     """,
-                    (backup["measurement"],)
+                    (backup["rule_id"],)
                 )
 
                 if backup["had_previous"]:
                     connection.execute(
                         """
                         INSERT INTO health_monitoring_rules (
-                            measurement, minimum, maximum, severity,
+                            rule_id, measurement, minimum, maximum, severity,
                             description, enabled, updated_at
                         )
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP))
                         """,
                         (
+                            backup["rule_id"],
                             backup["measurement"],
                             backup["minimum"],
                             backup["maximum"],
@@ -488,10 +612,10 @@ def set_default_monitoring_rules_enabled(enabled):
         connection.execute(
             """
             UPDATE health_default_rule_state
-            SET enabled = ?
+            SET enabled = ?, rules_version = ?
             WHERE id = 1
             """,
-            (int(enabled),)
+            (int(enabled), DEFAULT_RULES_VERSION)
         )
 
     return enabled
@@ -638,42 +762,71 @@ def evaluate_measurement(record):
 
     measurement = record["measurement"]
     value = record["value"]
+    rules = [
+        rule
+        for rule in get_monitoring_rules(measurement)
+        if rule["enabled"]
+    ]
 
-    rule = get_monitoring_rule(measurement)
-
-    if rule is None or not rule["enabled"]:
+    if not rules:
         return {
             "monitored": False,
             "abnormal": False,
             "reason": "No active monitoring rule."
         }
 
-    below_minimum = (
-        rule["minimum"] is not None
-        and value < rule["minimum"]
-    )
+    triggered_rules = []
 
-    above_maximum = (
-        rule["maximum"] is not None
-        and value > rule["maximum"]
-    )
+    for rule in rules:
+        below_minimum = (
+            rule["minimum"] is not None
+            and value < rule["minimum"]
+        )
+        above_maximum = (
+            rule["maximum"] is not None
+            and value > rule["maximum"]
+        )
 
-    abnormal = below_minimum or above_maximum
+        if below_minimum or above_maximum:
+            triggered_rules.append((rule, below_minimum))
 
-    if below_minimum:
-        reason = "Measurement is below the configured minimum."
-
-    elif above_maximum:
-        reason = "Measurement is above the configured maximum."
-
+    if triggered_rules:
+        severity_order = {
+            severity: index
+            for index, severity in enumerate(
+                ("low", "medium", "high", "critical")
+            )
+        }
+        selected_rule, below_minimum = max(
+            triggered_rules,
+            key=lambda entry: severity_order[entry[0]["severity"]]
+        )
+        boundary_value = (
+            selected_rule["minimum"]
+            if below_minimum
+            else selected_rule["maximum"]
+        )
+        direction = "below" if below_minimum else "above"
+        unit = record.get("unit", "")
+        reason = (
+            f"Measurement is {direction} the configured boundary "
+            f"({boundary_value} {unit}); triggering a "
+            f"{selected_rule['severity']} alert."
+        )
+        selected_severity = selected_rule["severity"]
+        description = selected_rule["description"]
+        abnormal = True
     else:
         reason = "Measurement is within configured boundaries."
+        selected_severity = None
+        description = rules[0]["description"]
+        abnormal = False
 
     return {
         "monitored": True,
         "abnormal": abnormal,
-        "severity": rule["severity"] if abnormal else None,
-        "description": rule["description"],
+        "severity": selected_severity,
+        "description": description,
         "reason": reason
     }
 
@@ -802,6 +955,8 @@ def process_measurement(record):
 def get_statistics():
     """Return Health Core statistics."""
 
+    _ensure_default_monitoring_rules_current()
+
     with get_connection() as connection:
 
         row = connection.execute(
@@ -823,7 +978,7 @@ def get_statistics():
 
         abnormal = connection.execute(
             """
-            SELECT COUNT(*)
+            SELECT COUNT(DISTINCT m.id)
             FROM health_measurements AS m
             JOIN health_monitoring_rules AS r
                 ON r.measurement = m.measurement

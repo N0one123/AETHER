@@ -40,6 +40,8 @@ The website includes:
 - Symptom evaluation with research references.
 - Historical measurement tracking.
 - Health monitoring and measurement history.
+- Independently editable medium, high, and critical Health rules for heart
+  rate, blood oxygen, body temperature, respiratory rate, and blood pressure.
 - Emergency alert creation and management.
 - Simulated data for demonstrations.
 - Core-system status monitoring.
@@ -106,6 +108,11 @@ These resources provide scientific context for understanding physiological chang
 ### **Important Disclaimer**
 
 AETHER is an independent student-developed prototype intended for educational, research, and demonstration purposes. It is not a certified medical device and does not replace professional medical assessment or official spacecraft health-monitoring systems.
+
+Health monitoring defaults are configurable examples, not mission-specific
+medical guidance. Each severity band is stored as a separate editable rule;
+thresholds should be confirmed against the intended mission's medical
+protocols.
 
 Simulated measurements are intended exclusively for demonstrations and must not be interpreted as actual astronaut health data.
 

@@ -555,7 +555,7 @@
                     <div class="section-header">
                         <div>
                             <h2>Monitoring Rules</h2>
-                            <p>Configure measurement boundaries and alert severity.</p>
+                            <p>Add independent rules for each measurement; the highest matching severity is used.</p>
                         </div>
 
                         <span>{{ monitoring_rules | length }} rules</span>
@@ -686,13 +686,13 @@
                                 class="health-rule-summary"
                                 aria-expanded="false"
                                 aria-controls="health-rule-details-{{ rule_index }}"
-                                aria-label="Show details for {{ rule.measurement | replace('_', ' ') | title }}"
+                                aria-label="Show details for {{ rule.measurement | replace('_', ' ') | title }} - {{ rule.severity | title }}"
                                 data-health-rule-summary
                             >
                                 <span
                                     class="health-rule-title"
-                                    title="{{ rule.measurement | replace('_', ' ') | title }}"
-                                >{{ rule.measurement | replace("_", " ") | title }}</span>
+                                    title="{{ rule.measurement | replace('_', ' ') | title }} - {{ rule.severity | title }}"
+                                >{{ rule.measurement | replace("_", " ") | title }} - {{ rule.severity | title }}</span>
                                 <span class="health-rule-expand-icon" aria-hidden="true">+</span>
                             </button>
 
@@ -733,7 +733,7 @@
                                     >Edit</button>
 
                                     <form method="POST" action="/health/remove-rule">
-                                        <input type="hidden" name="measurement" value="{{ rule.measurement }}">
+                                        <input type="hidden" name="rule_id" value="{{ rule.rule_id }}">
                                         <button type="submit" class="action-button danger">Remove</button>
                                     </form>
                                 </div>
@@ -744,6 +744,7 @@
                                     class="health-rule-edit-form"
                                     hidden
                                 >
+                                    <input type="hidden" name="rule_id" value="{{ rule.rule_id }}">
                                     <input type="hidden" name="measurement" value="{{ rule.measurement }}">
 
                                     <label for="rule-minimum-{{ rule_index }}">Minimum Boundary</label>

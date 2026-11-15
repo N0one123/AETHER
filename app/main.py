@@ -357,7 +357,8 @@ def configure_health_rule(
     minimum: float | None = Form(None),
     maximum: float | None = Form(None),
     severity: str = Form("medium"),
-    description: str = Form("")
+    description: str = Form(""),
+    rule_id: str | None = Form(None)
 ):
     try:
         health.configure_monitoring_rule(
@@ -365,7 +366,8 @@ def configure_health_rule(
             minimum=minimum,
             maximum=maximum,
             severity=severity,
-            description=description.strip()
+            description=description.strip(),
+            rule_id=rule_id
         )
 
         return RedirectResponse(
@@ -391,10 +393,10 @@ def configure_health_rule(
 
 @app.post("/health/remove-rule")
 def remove_health_rule(
-    measurement: str = Form(...)
+    rule_id: str = Form(...)
 ):
     try:
-        removed = health.remove_monitoring_rule(measurement)
+        removed = health.remove_monitoring_rule(rule_id)
 
         message = "rule_removed" if removed else "invalid_rule"
 
