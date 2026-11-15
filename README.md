@@ -116,24 +116,5 @@ Developed by **Team Apogeee** for the NASA International Space Apps Challenge.
 NASA research resources and the open-source software packages used in the project are acknowledged for their respective contributions.
 
 NASA is not affiliated with, sponsoring, or endorsing AETHER.
-
-### **Health Monitoring Defaults**
-
-The Health page's default monitoring rule set is defined by
-`DEFAULT_MONITORING_RULES` in `app/cores/health.py`. Adjust its measurement
-boundaries, severities, and descriptions to match the mission's medical
-protocols. Enabling defaults activates the rules and normal Health Core alert
-processing; disabling them removes only rules still managed by defaults and
-restores any custom rules they replaced.
-
-### **Tracking Data and Forecasts**
-
-The Tracking page reads non-simulated Health records and simulated records
-explicitly tagged with `source="sim_lab"` from `health_measurements`. Real
-Health and Sim Lab data are displayed in separate astronaut timelines, with
-timestamp-based projections for each measurement series after three or more
-points. The requested forecast horizon is 24 hours, capped at one observed
-series span beyond the latest sample to avoid extreme extrapolations from
-short-term measurement changes. Projections are not diagnoses or alerts.
 Future Sim Lab integrations should set both `simulated=1` and
 `source="sim_lab"`.
