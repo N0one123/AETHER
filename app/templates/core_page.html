@@ -311,45 +311,103 @@
         <!-- TRACKING -->
         {% elif active_page == "tracking" %}
 
-            <div class="content-panel">
+            {% for astronaut in tracking_astronauts %}
+            <section class="content-panel tracking-astronaut-panel">
                 <div class="section-header">
-                    <h2>Recorded Measurements</h2>
-                    <span>{{ measurements | length }} records</span>
+                    <div>
+                        <span class="eyebrow">ASTRONAUT</span>
+                        <h2>{{ astronaut.astronaut_id }}</h2>
+                    </div>
                 </div>
 
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Astronaut</th>
-                                <th>Measurement</th>
-                                <th>Value</th>
-                                <th>Source</th>
-                                <th>Data Type</th>
-                                <th>Timestamp</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for item in measurements %}
-                            <tr>
-                                <td>{{ item.astronaut_id }}</td>
-                                <td>{{ item.measurement }}</td>
-                                <td>{{ item.value }} {{ item.unit }}</td>
-                                <td>{{ item.source }}</td>
-                                <td>{{ "SIMULATED" if item.simulated else "RECORDED" }}</td>
-                                <td>{{ item.timestamp }}</td>
-                            </tr>
+                <div class="tracking-stream-grid">
+                    {% for stream in astronaut.streams.values() %}
+                    <section class="tracking-stream tracking-stream-{{ stream.key }}">
+                        <div class="tracking-stream-heading">
+                            <div>
+                                <h3>{{ stream.label }}</h3>
+                                <p>{{ stream.description }}</p>
+                            </div>
+                            <span>{{ stream.measurements | length }} points</span>
+                        </div>
+
+                        {% if stream.measurements %}
+                        <div class="table-container tracking-timeline">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Timestamp</th>
+                                        <th>Measurement</th>
+                                        <th>Value</th>
+                                        <th>Source</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for item in stream.measurements %}
+                                    <tr>
+                                        <td>{{ item.timestamp }}</td>
+                                        <td>{{ item.measurement | replace("_", " ") | title }}</td>
+                                        <td>{{ item.value }} {{ item.unit }}</td>
+                                        <td>{{ item.source }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <p class="tracking-empty-stream">No {{ stream.label | lower }} points recorded.</p>
+                        {% endif %}
+
+                        <div class="tracking-forecasts">
+                            <h4>Projections by measurement</h4>
+                            {% if stream.series %}
+                            <div class="tracking-forecast-grid">
+                                {% for series in stream.series %}
+                                <article class="tracking-forecast-card">
+                                    <h5>
+                                        {{ series.measurement | replace("_", " ") | title }}
+                                        <span>({{ series.unit }})</span>
+                                    </h5>
+                                    <p>{{ series.sample_count }} eligible points</p>
+
+                                    {% if series.forecast and series.forecast.predicted_value is not none %}
+                                    <strong>
+                                        {{ series.forecast.predicted_value | round(2) }} {{ series.unit }}
+                                    </strong>
+                                    <span>
+                                        {% if series.forecast.effective_horizon_minutes < 60 %}
+                                        Projected {{ series.forecast.effective_horizon_minutes | round(1) }} minutes ahead:
+                                        {% else %}
+                                        Projected {{ series.forecast.effective_horizon_hours | round(2) }} hours ahead:
+                                        {% endif %}
+                                        {{ series.forecast.forecast_timestamp }}
+                                    </span>
+                                    <small class="tracking-simulated-only">
+                                        Only <span>SIMULATED</span> data analysis
+                                    </small>
+                                    {% elif series.forecast %}
+                                    <span class="tracking-forecast-note">{{ series.forecast.reason }}</span>
+                                    {% else %}
+                                    <span class="tracking-forecast-note">
+                                        Need {{ 3 - series.sample_count }} more point(s) for a projection.
+                                    </span>
+                                    {% endif %}
+                                </article>
+                                {% endfor %}
+                            </div>
                             {% else %}
-                            <tr>
-                                <td colspan="6" class="table-empty">
-                                    No measurements recorded yet.
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+                            <p class="tracking-empty-stream">No measurements to project in this stream.</p>
+                            {% endif %}
+                        </div>
+                    </section>
+                    {% endfor %}
                 </div>
+            </section>
+            {% else %}
+            <div class="content-panel">
+                <p class="empty-state">No eligible real Health or Sim Lab measurements are available for Tracking yet.</p>
             </div>
+            {% endfor %}
 
 
         <!-- HEALTH MONITORING -->

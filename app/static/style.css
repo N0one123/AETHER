@@ -1766,8 +1766,129 @@ tbody tr:last-child td { border-bottom: 0; }
 }
 
 /* ---------------------------------------------------------------------
-   13 · HEALTH
+   13 · TRACKING AND HEALTH
    --------------------------------------------------------------------- */
+.tracking-astronaut-panel { min-width: 0; }
+
+.tracking-stream-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.tracking-stream {
+    min-width: 0;
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--panel-inset);
+}
+
+.tracking-stream-real_health { border-top: 2px solid var(--green); }
+.tracking-stream-sim_lab { border-top: 2px solid var(--yellow); }
+
+.tracking-stream-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.tracking-stream-heading h3 {
+    margin-bottom: 4px;
+    font-family: var(--font-display);
+    font-size: 16px;
+}
+
+.tracking-stream-heading p,
+.tracking-stream-heading > span {
+    color: var(--muted);
+    font-size: 11.5px;
+}
+
+.tracking-stream-heading > span { flex: none; }
+
+.tracking-timeline {
+    max-height: 360px;
+    background: rgba(0, 0, 0, 0.12);
+}
+
+.tracking-timeline td {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.tracking-forecasts {
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--hairline);
+}
+
+.tracking-forecasts > h4 {
+    margin: 0 0 10px;
+    color: var(--accent);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+.tracking-forecast-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.tracking-forecast-card {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 0;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: rgba(255, 255, 255, 0.025);
+}
+
+.tracking-forecast-card h5 {
+    font-size: 12.5px;
+    overflow-wrap: anywhere;
+}
+
+.tracking-forecast-card h5 span,
+.tracking-forecast-card p,
+.tracking-forecast-card > span,
+.tracking-forecast-card small {
+    color: var(--text-soft);
+    font-size: 11px;
+}
+
+.tracking-forecast-card strong {
+    color: var(--accent);
+    font-family: var(--font-display);
+    font-size: 20px;
+}
+
+.tracking-forecast-note,
+.tracking-empty-stream {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.tracking-simulated-only {
+    color: var(--text-soft);
+    font-size: 11px;
+}
+
+.tracking-simulated-only span {
+    color: var(--yellow);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+}
+
+.tracking-empty-stream { padding: 12px 0; }
+
 .health-overview {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3003,6 +3124,7 @@ tbody tr:last-child td { border-bottom: 0; }
 
 @media (max-width: 1100px) {
     .health-overview { grid-template-columns: 1fr; }
+    .tracking-stream-grid { grid-template-columns: 1fr; }
     .severity-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .astronaut-form { grid-template-columns: 1fr 1fr; }
     .astronaut-form .action-button { grid-column: 1 / -1; }
@@ -3035,6 +3157,7 @@ tbody tr:last-child td { border-bottom: 0; }
 
 @media (max-width: 640px) {
     .health-rules-list { grid-template-columns: 1fr; }
+    .tracking-forecast-grid { grid-template-columns: 1fr; }
     .page-header,
     .dashboard-header { flex-direction: column; align-items: flex-start; padding-top: 22px; }
     .topbar-search { width: 40px; padding: 0; justify-content: center; }
