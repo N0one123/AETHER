@@ -192,6 +192,15 @@ def validate_measurement(record):
     if not isinstance(source, str) or not source.strip():
         raise ValueError("Measurement source cannot be empty.")
 
+    simulation_session_id = record.get("simulation_session_id")
+    if simulation_session_id is not None:
+        if (
+            not isinstance(simulation_session_id, str)
+            or not simulation_session_id.strip()
+        ):
+            raise ValueError("Simulation session ID must be non-empty text.")
+        simulation_session_id = simulation_session_id.strip()
+
     simulated = record.get("simulated", False)
 
     if not isinstance(simulated, bool):
@@ -217,7 +226,8 @@ def validate_measurement(record):
         "unit": unit.strip(),
         "source": source.strip(),
         "simulated": simulated,
-        "timestamp": timestamp
+        "timestamp": timestamp,
+        "simulation_session_id": simulation_session_id
     }
 
 
@@ -625,7 +635,7 @@ def set_default_monitoring_rules_enabled(enabled):
 # MEASUREMENT STORAGE
 # ---------------------------------------------------------
 
-def record_measurement(record):
+def record_measurement(record, update_existing=False):
     """Validate and store a health measurement."""
 
     measurement = validate_measurement(record)
@@ -644,6 +654,73 @@ def record_measurement(record):
         if astronaut is None:
             raise ValueError("Astronaut does not exist.")
 
+        existing = None
+        if update_existing:
+            session_id = measurement["simulation_session_id"]
+            if not session_id:
+                raise ValueError(
+                    "Updating a Health record requires a simulation session ID."
+                )
+            existing = connection.execute(
+                """
+                SELECT id
+                FROM health_measurements
+                WHERE astronaut_id = ?
+                  AND measurement = ?
+                  AND source = ?
+                  AND simulated = ?
+                  AND simulation_session_id = ?
+                ORDER BY timestamp DESC, id DESC
+                LIMIT 1
+                """,
+                (
+                    measurement["astronaut_id"],
+                    measurement["measurement"],
+                    measurement["source"],
+                    int(measurement["simulated"]),
+                    session_id
+                )
+            ).fetchone()
+
+        if existing:
+            measurement_id = existing["id"]
+            connection.execute(
+                """
+                UPDATE health_measurements
+                SET value = ?, unit = ?, timestamp = ?
+                WHERE id = ?
+                """,
+                (
+                    measurement["value"],
+                    measurement["unit"],
+                    measurement["timestamp"],
+                    measurement_id
+                )
+            )
+            connection.execute(
+                """
+                DELETE FROM health_measurements
+                WHERE astronaut_id = ?
+                  AND measurement = ?
+                  AND source = ?
+                  AND simulated = ?
+                  AND simulation_session_id = ?
+                  AND id != ?
+                """,
+                (
+                    measurement["astronaut_id"],
+                    measurement["measurement"],
+                    measurement["source"],
+                    int(measurement["simulated"]),
+                    session_id,
+                    measurement_id
+                )
+            )
+            return {
+                "id": measurement_id,
+                **measurement
+            }
+
         cursor = connection.execute(
             """
             INSERT INTO health_measurements (
@@ -653,9 +730,10 @@ def record_measurement(record):
                 unit,
                 source,
                 simulated,
+                simulation_session_id,
                 timestamp
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 measurement["astronaut_id"],
@@ -664,6 +742,7 @@ def record_measurement(record):
                 measurement["unit"],
                 measurement["source"],
                 int(measurement["simulated"]),
+                measurement["simulation_session_id"],
                 measurement["timestamp"]
             )
         )
@@ -835,7 +914,11 @@ def evaluate_measurement(record):
 # EMERGENCY RESPONSE
 # ---------------------------------------------------------
 
-def trigger_emergency_response(record, evaluation):
+def trigger_emergency_response(
+    record,
+    evaluation,
+    deduplicate_active=False
+):
     """Create an incident for each abnormal Health measurement."""
 
     if not evaluation["abnormal"]:
@@ -856,6 +939,21 @@ def trigger_emergency_response(record, evaluation):
         else "health"
     )
 
+    if deduplicate_active:
+        existing = emergency_response.get_active_health_alert(
+            astronaut_id=record["astronaut_id"],
+            title=title,
+            alert_source=source,
+            measurement_source=record["source"],
+            simulation_session_id=record.get("simulation_session_id")
+        )
+        if existing:
+            return {
+                "created": False,
+                "duplicate": True,
+                "alert_id": existing["id"]
+            }
+
     description = (
         f"Measurement: {record['measurement']}\n"
         f"Value: {record['value']} {record['unit']}\n"
@@ -865,6 +963,10 @@ def trigger_emergency_response(record, evaluation):
         f"Reason: {evaluation['reason']}\n"
         f"Details: {evaluation.get('description') or 'No additional details.'}"
     )
+    if record.get("simulation_session_id"):
+        description += (
+            f"\nSimulation Session: {record['simulation_session_id']}"
+        )
 
     alert = emergency_response.create_alert(
         astronaut_id=record["astronaut_id"],
@@ -896,7 +998,8 @@ def resolve_health_alerts_for_measurement(record):
         astronaut_id=record["astronaut_id"],
         title=title,
         alert_source=alert_source,
-        measurement_source=record["source"]
+        measurement_source=record["source"],
+        simulation_session_id=record.get("simulation_session_id")
     )
 
 
@@ -904,14 +1007,21 @@ def resolve_health_alerts_for_measurement(record):
 # COMPLETE MEASUREMENT PROCESSING
 # ---------------------------------------------------------
 
-def process_measurement(record):
+def process_measurement(
+    record,
+    update_existing=False,
+    deduplicate_active_alerts=False
+):
     """
     Store, evaluate and process one health measurement.
 
     This function does not call Tracking.
     """
 
-    stored = record_measurement(record)
+    stored = record_measurement(
+        record,
+        update_existing=update_existing
+    )
 
     evaluation = evaluate_measurement(stored)
 
@@ -923,7 +1033,8 @@ def process_measurement(record):
         try:
             alert = trigger_emergency_response(
                 stored,
-                evaluation
+                evaluation,
+                deduplicate_active=deduplicate_active_alerts
             )
 
         except Exception as error:

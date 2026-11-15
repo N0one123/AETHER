@@ -31,6 +31,7 @@ def initialise_database():
                 unit TEXT NOT NULL,
                 source TEXT NOT NULL,
                 simulated INTEGER NOT NULL DEFAULT 0,
+                simulation_session_id TEXT,
                 timestamp TEXT NOT NULL,
 
                 FOREIGN KEY (astronaut_id)
@@ -60,6 +61,7 @@ def initialise_database():
                 dose_msv REAL NOT NULL CHECK (dose_msv >= 0),
                 source TEXT NOT NULL DEFAULT 'manual_entry',
                 notes TEXT,
+                simulation_session_id TEXT,
                 timestamp TEXT NOT NULL,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -67,6 +69,24 @@ def initialise_database():
                     REFERENCES astronauts(id)
                     ON DELETE CASCADE
             );
+
+            CREATE TABLE IF NOT EXISTS simulation_lab_state (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                running INTEGER NOT NULL DEFAULT 0,
+                speed INTEGER NOT NULL DEFAULT 1,
+                retention TEXT NOT NULL DEFAULT 'retain',
+                baseline_json TEXT,
+                current_json TEXT,
+                current_dose_msv REAL,
+                started_at TEXT,
+                simulation_time TEXT,
+                session_id TEXT,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                last_error TEXT
+            );
+
+            INSERT OR IGNORE INTO simulation_lab_state (id, running)
+            VALUES (1, 0);
 
             CREATE TABLE IF NOT EXISTS health_monitoring_rules (
                 rule_id TEXT PRIMARY KEY,
@@ -184,6 +204,32 @@ def initialise_database():
                 ON events(event_name);
 
         """)
+
+        for table_name, column_definition in (
+            ("health_measurements", "simulation_session_id TEXT"),
+            ("radiation_measurements", "simulation_session_id TEXT"),
+            ("simulation_lab_state", "simulation_time TEXT"),
+            ("simulation_lab_state", "session_id TEXT")
+        ):
+            columns = {
+                row["name"]
+                for row in connection.execute(
+                    f"PRAGMA table_info({table_name})"
+                ).fetchall()
+            }
+            column_name = column_definition.split()[0]
+            if column_name not in columns:
+                connection.execute(
+                    f"ALTER TABLE {table_name} ADD COLUMN {column_definition}"
+                )
+
+        connection.execute(
+            """
+            UPDATE simulation_lab_state
+            SET simulation_time = started_at
+            WHERE simulation_time IS NULL AND started_at IS NOT NULL
+            """
+        )
 
         _migrate_health_monitoring_rules(connection)
         _migrate_health_default_rule_backups(connection)

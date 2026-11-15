@@ -103,6 +103,52 @@ def get_all_alerts(status=None):
     return [dict(row) for row in rows]
 
 
+def get_active_health_alert(
+    astronaut_id,
+    title,
+    alert_source,
+    measurement_source,
+    simulation_session_id=None
+):
+    """Find an active Health alert for the exact measurement identity."""
+
+    if alert_source not in {"health", "health_simulation"}:
+        raise ValueError("Only Health-generated alerts can be queried.")
+
+    conditions = [
+        "astronaut_id = ?",
+        "title = ?",
+        "source = ?",
+        "status = 'Active'",
+        "instr(COALESCE(description, ''), ?) > 0"
+    ]
+    parameters = [
+        astronaut_id,
+        title,
+        alert_source,
+        f"Source: {measurement_source}\n"
+    ]
+
+    if simulation_session_id:
+        conditions.append("instr(COALESCE(description, ''), ?) > 0")
+        parameters.append(
+            f"Simulation Session: {simulation_session_id}"
+        )
+
+    with get_connection() as connection:
+        row = connection.execute(
+            f"""
+            SELECT * FROM alerts
+            WHERE {" AND ".join(conditions)}
+            ORDER BY created_at DESC, rowid DESC
+            LIMIT 1
+            """,
+            parameters
+        ).fetchone()
+
+    return dict(row) if row else None
+
+
 def resolve_alert(alert_id):
     """Mark an alert as resolved."""
 
@@ -124,7 +170,8 @@ def resolve_matching_health_alerts(
     astronaut_id,
     title,
     alert_source,
-    measurement_source
+    measurement_source,
+    simulation_session_id=None
 ):
     """Resolve active Health alerts matching one measurement identity."""
 
@@ -132,6 +179,11 @@ def resolve_matching_health_alerts(
         raise ValueError("Only Health-generated alerts can be auto-resolved.")
 
     source_marker = f"Source: {measurement_source}\n"
+    session_marker = (
+        f"Simulation Session: {simulation_session_id}"
+        if simulation_session_id
+        else None
+    )
 
     with get_connection() as connection:
         cursor = connection.execute(
@@ -144,12 +196,18 @@ def resolve_matching_health_alerts(
               AND source = ?
               AND status = 'Active'
               AND instr(COALESCE(description, ''), ?) > 0
+              AND (
+                    ? IS NULL
+                    OR instr(COALESCE(description, ''), ?) > 0
+              )
             """,
             (
                 astronaut_id,
                 title,
                 alert_source,
-                source_marker
+                source_marker,
+                session_marker,
+                session_marker
             )
         )
 

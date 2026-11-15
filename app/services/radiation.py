@@ -50,7 +50,14 @@ def get_current_timestamp():
     return datetime.now(timezone.utc).isoformat()
 
 
-def record_measurement(astronaut_id, dose_msv, source="manual_entry", notes=""):
+def record_measurement(
+    astronaut_id,
+    dose_msv,
+    source="manual_entry",
+    notes="",
+    timestamp=None,
+    simulation_session_id=None
+):
     """Validate and persist one accumulated dose reading."""
 
     if not isinstance(astronaut_id, str) or not astronaut_id.strip():
@@ -63,6 +70,22 @@ def record_measurement(astronaut_id, dose_msv, source="manual_entry", notes=""):
 
     if not isinstance(notes, str):
         raise ValueError("Notes must be text.")
+
+    if simulation_session_id is not None:
+        if (
+            not isinstance(simulation_session_id, str)
+            or not simulation_session_id.strip()
+        ):
+            raise ValueError("Simulation session ID must be non-empty text.")
+        simulation_session_id = simulation_session_id.strip()
+
+    timestamp = timestamp or get_current_timestamp()
+    if not isinstance(timestamp, str) or not timestamp.strip():
+        raise ValueError("A valid measurement timestamp is required.")
+    try:
+        datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+    except ValueError as error:
+        raise ValueError("Timestamp must be valid ISO 8601.") from error
 
     astronaut_id = astronaut_id.strip()
     source = source.strip()
@@ -80,16 +103,18 @@ def record_measurement(astronaut_id, dose_msv, source="manual_entry", notes=""):
         cursor = connection.execute(
             """
             INSERT INTO radiation_measurements (
-                astronaut_id, dose_msv, source, notes, timestamp
+                astronaut_id, dose_msv, source, notes,
+                simulation_session_id, timestamp
             )
-            VALUES (?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
             (
                 astronaut_id,
                 float(dose_msv),
                 source,
                 notes,
-                get_current_timestamp()
+                simulation_session_id,
+                timestamp
             )
         )
         row = connection.execute(
@@ -105,14 +130,23 @@ def record_measurement(astronaut_id, dose_msv, source="manual_entry", notes=""):
     return dict(row)
 
 
-def process_measurement(astronaut_id, dose_msv, source="manual_entry", notes=""):
+def process_measurement(
+    astronaut_id,
+    dose_msv,
+    source="manual_entry",
+    notes="",
+    timestamp=None,
+    simulation_session_id=None
+):
     """Record a reading and create a fresh alert when it reaches a band."""
 
     measurement = record_measurement(
         astronaut_id=astronaut_id,
         dose_msv=dose_msv,
         source=source,
-        notes=notes
+        notes=notes,
+        timestamp=timestamp,
+        simulation_session_id=simulation_session_id
     )
     severity = get_severity(measurement["dose_msv"])
     alert = None
@@ -126,6 +160,10 @@ def process_measurement(astronaut_id, dose_msv, source="manual_entry", notes="")
             f"Source: {measurement['source']}\n"
             f"Recorded: {measurement['timestamp']}"
         )
+        if simulation_session_id:
+            description += (
+                f"\nSimulation Session: {simulation_session_id}"
+            )
 
         if measurement["notes"]:
             description += f"\nNotes: {measurement['notes']}"
@@ -133,7 +171,11 @@ def process_measurement(astronaut_id, dose_msv, source="manual_entry", notes="")
         try:
             alert = emergency_response.create_alert(
                 astronaut_id=measurement["astronaut_id"],
-                title="Radiation dose threshold exceeded",
+                title=(
+                    "[SIMULATED] Radiation dose threshold exceeded"
+                    if measurement["source"] == "sim_lab"
+                    else "Radiation dose threshold exceeded"
+                ),
                 description=description,
                 severity=severity,
                 source="radiation"

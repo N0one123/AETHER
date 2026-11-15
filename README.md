@@ -34,6 +34,17 @@ Its fast-forward slider shows an illustrative projection using an assumed
 increase of 50 mSv per six months, based on the astronaut's latest recorded
 dose. Projections are not saved as readings and do not create alerts.
 
+Simulation Lab is a separate tool for generating clearly marked demonstration
+data through Health, Tracking, Emergency Response, and Radiation. It creates
+one `Simulation Astronaut` (`sim_lab_ast`) and accepts starting values for
+Health measurements and accumulated Radiation dose. It updates Health and
+Radiation once per real-time second; the adjustable 1x-10x speed advances the
+simulation clock by that many simulated seconds per update. Speed can be
+changed while a run is active. Health readings fluctuate around the selected
+baselines with occasional abnormal excursions; Radiation accumulates at the
+configured projection rate. The user chooses whether to retain or clear the
+generated session data when stopping the simulation.
+
 ### **Website Features**
 
 AETHER provides a central Mission Control dashboard with an overview of registered astronauts, active alerts, recorded measurements, and core-system statuses.
@@ -50,6 +61,7 @@ The website includes:
   rate, blood oxygen, body temperature, respiratory rate, and blood pressure.
 - Radiation dose recording, threshold alerts, and a present-to-two-year
   projection slider.
+- Simulation Lab data generation with selectable speed and retention.
 - Emergency alert creation and management.
 - Simulated data for demonstrations.
 - Core-system status monitoring.
@@ -132,6 +144,12 @@ and the 50 mSv-per-six-month projection are prototype assumptions, not
 operational or medical guidance. Validate limits and exposure models against
 the applicable mission radiation-safety protocols. Forecast-only readings
 never generate persistent alerts.
+
+Simulation Lab data is synthetic and for demonstration only. Simulated Health
+records are marked as simulated and use the `sim_lab` source so Tracking keeps
+them separate from real readings. Health alerts depend on enabled Health
+monitoring rules. Simulated Radiation dose is cumulative; generated data and
+its alerts follow the retention choice made when the run starts.
 
 Simulated measurements are intended exclusively for demonstrations and must not be interpreted as actual astronaut health data.
 

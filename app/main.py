@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 import sqlite3
 from urllib.parse import parse_qs
 from fastapi.responses import RedirectResponse
-from fastapi import FastAPI, Request, Form
+from fastapi import FastAPI, HTTPException, Request, Form
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -19,13 +19,18 @@ from app.services.evaluation_page import get_evaluation_page_data
 from app.services.health_page import get_health_page_data
 from app.services.emergency_page import get_emergency_page_data
 from app.services import radiation
+from app.services import simulation_lab
 from app.database.schema import initialise_database
 
 
 @asynccontextmanager
 async def lifespan(_app):
     initialise_database()
-    yield
+    await simulation_lab.resume_simulation()
+    try:
+        yield
+    finally:
+        await simulation_lab.shutdown_simulation()
 
 app = FastAPI(
     title="AETHER",
@@ -524,6 +529,107 @@ def record_radiation_measurement(
         url=f"/radiation?message={message}",
         status_code=303
     )
+
+
+@app.get("/simulation")
+def simulation_lab_page(request: Request):
+    messages = {
+        "started": "Simulation started.",
+        "stopped": "Simulation stopped.",
+        "invalid": "Simulation settings are invalid. Check all starting values.",
+        "already_running": "A simulation is already running.",
+        "error": "Simulation operation failed. Check the application logs."
+    }
+
+    return templates.TemplateResponse(
+        request=request,
+        name="core_page.html",
+        context={
+            "active_page": "simulation",
+            "page_message": messages.get(
+                request.query_params.get("message")
+            ),
+            **simulation_lab.get_simulation_page_data()
+        }
+    )
+
+
+@app.post("/simulation/start")
+async def start_simulation_lab(
+    heart_rate: float = Form(...),
+    blood_oxygen: float = Form(...),
+    body_temperature: float = Form(...),
+    respiratory_rate: float = Form(...),
+    systolic_blood_pressure: float = Form(...),
+    diastolic_blood_pressure: float = Form(...),
+    radiation_dose_msv: float = Form(...),
+    speed: int = Form(...),
+    retention: str = Form(...)
+):
+    initial_values = {
+        "heart_rate": heart_rate,
+        "blood_oxygen": blood_oxygen,
+        "body_temperature": body_temperature,
+        "respiratory_rate": respiratory_rate,
+        "systolic_blood_pressure": systolic_blood_pressure,
+        "diastolic_blood_pressure": diastolic_blood_pressure
+    }
+
+    try:
+        await simulation_lab.start_simulation(
+            initial_values=initial_values,
+            dose_msv=radiation_dose_msv,
+            speed=speed,
+            retention=retention
+        )
+        message = "started"
+
+    except ValueError as error:
+        print("SIMULATION LAB VALIDATION ERROR:", str(error))
+        message = (
+            "already_running"
+            if "already running" in str(error).lower()
+            else "invalid"
+        )
+
+    except Exception as error:
+        print("SIMULATION LAB START ERROR:", repr(error))
+        message = "error"
+
+    return RedirectResponse(
+        url=f"/simulation?message={message}",
+        status_code=303
+    )
+
+
+@app.post("/simulation/stop")
+async def stop_simulation_lab():
+    try:
+        await simulation_lab.stop_simulation()
+        message = "stopped"
+    except Exception as error:
+        print("SIMULATION LAB STOP ERROR:", repr(error))
+        message = "error"
+
+    return RedirectResponse(
+        url=f"/simulation?message={message}",
+        status_code=303
+    )
+
+
+@app.get("/api/simulation/status")
+def simulation_lab_status():
+    return simulation_lab.get_simulation_status()
+
+
+@app.post("/api/simulation/speed")
+async def update_simulation_speed(speed: int = Form(...)):
+    try:
+        return await simulation_lab.set_simulation_speed(speed)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    except RuntimeError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
 
 
 @app.get("/emergency-response")

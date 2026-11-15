@@ -2670,6 +2670,104 @@ tbody tr:last-child td { border-bottom: 0; }
 
 .chart-container > div { width: 100%; }
 
+.dashboard-chart-svg {
+    display: block;
+    width: 100%;
+    height: 190px;
+    overflow: visible;
+}
+
+.dashboard-chart-gridline {
+    stroke: var(--hairline);
+    stroke-width: 1;
+}
+
+.dashboard-chart-axis-label {
+    fill: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 9px;
+}
+
+.dashboard-health-line {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+}
+
+.dashboard-health-point {
+    fill: var(--accent);
+    stroke: var(--panel-solid);
+    stroke-width: 2;
+}
+
+.dashboard-radiation-actual-line,
+.dashboard-radiation-predicted-line {
+    fill: none;
+    stroke-width: 1.8;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+}
+
+.dashboard-radiation-predicted-line {
+    stroke-dasharray: 4 4;
+    opacity: 0.8;
+}
+
+.dashboard-radiation-point {
+    stroke-width: 2;
+}
+
+.dashboard-chart-caption,
+.dashboard-chart-legend,
+.dashboard-chart-key {
+    color: var(--muted);
+    font-size: 10px;
+}
+
+.dashboard-chart-caption {
+    padding: 2px 0 0 42px;
+}
+
+.dashboard-chart-legend,
+.dashboard-chart-key {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5px 12px;
+    padding: 0 4px 2px;
+}
+
+.dashboard-chart-legend-name,
+.dashboard-chart-key span {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.dashboard-chart-legend-name i {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--series-color);
+}
+
+.dashboard-chart-key i {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+}
+
+.dashboard-chart-key .is-actual {
+    background: var(--text-soft);
+}
+
+.dashboard-chart-key .is-predicted {
+    border: 1.5px solid var(--text-soft);
+}
+
 .chart-container .js-plotly-plot,
 .chart-container .plot-container,
 .chart-container .svg-container {
@@ -3191,6 +3289,136 @@ tbody tr:last-child td { border-bottom: 0; }
     margin: 18px 0 0;
 }
 
+.simulation-overview {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 20px;
+}
+
+.simulation-overview > .form-message {
+    grid-column: 1 / -1;
+}
+
+.simulation-astronaut {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 8px 14px;
+    margin-bottom: 18px;
+}
+
+.simulation-astronaut span,
+.simulation-current-data > div > span {
+    color: var(--muted);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.simulation-astronaut strong {
+    color: var(--text);
+}
+
+.simulation-astronaut code {
+    color: var(--accent);
+    font-family: var(--font-mono);
+    font-size: 12px;
+}
+
+.simulation-current-data {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 10px;
+}
+
+.simulation-current-data > div {
+    display: grid;
+    gap: 7px;
+    min-width: 0;
+    padding: 13px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: rgba(255, 255, 255, 0.025);
+}
+
+.simulation-current-data > div.is-abnormal {
+    border-color: #ff9f43;
+    box-shadow: 0 0 12px rgba(255, 159, 67, 0.2);
+}
+
+.simulation-current-data strong {
+    color: var(--text-soft);
+    font-family: var(--font-mono);
+    font-size: 14px;
+}
+
+.simulation-runtime {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 18px;
+    margin-top: 16px;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.simulation-start-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.simulation-start-form .simulation-note,
+.simulation-start-form .form-actions,
+.simulation-start-form [data-simulation-start-speed-value] {
+    grid-column: 1 / -1;
+}
+
+.simulation-start-form input[type="range"],
+.simulation-speed-control input[type="range"] {
+    width: 100%;
+    accent-color: var(--accent);
+}
+
+.simulation-start-form [data-simulation-start-speed-value] {
+    margin-top: -4px;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.simulation-speed-control {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px 14px;
+    margin-top: 18px;
+}
+
+.simulation-speed-control label,
+.simulation-speed-control [data-simulation-speed-error] {
+    grid-column: 1 / -1;
+}
+
+.simulation-speed-control label {
+    color: var(--text-soft);
+    font-size: 12px;
+}
+
+.simulation-speed-control output {
+    color: var(--accent);
+    font-family: var(--font-mono);
+    font-size: 13px;
+}
+
+.simulation-speed-control [data-simulation-speed-error] {
+    color: var(--red);
+    font-size: 12px;
+}
+
+.simulation-note {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.65;
+}
+
 /* ---------------------------------------------------------------------
    20 · RESPONSIVE
    --------------------------------------------------------------------- */
@@ -3204,6 +3432,7 @@ tbody tr:last-child td { border-bottom: 0; }
 @media (max-width: 1100px) {
     .health-overview { grid-template-columns: 1fr; }
     .radiation-overview { grid-template-columns: 1fr; }
+    .simulation-start-form { grid-template-columns: 1fr; }
     .tracking-stream-grid { grid-template-columns: 1fr; }
     .severity-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .astronaut-form { grid-template-columns: 1fr 1fr; }

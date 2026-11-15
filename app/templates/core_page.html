@@ -410,6 +410,184 @@
             {% endfor %}
 
 
+        <!-- SIMULATION LAB -->
+        {% elif active_page == "simulation" %}
+
+            <div class="simulation-overview" id="simulation-lab">
+
+                {% if page_message %}
+                <div class="form-message">{{ page_message }}</div>
+                {% endif %}
+
+                {% if simulation.last_error %}
+                <div class="form-message error-message">
+                    Simulation stopped after an error: {{ simulation.last_error }}
+                </div>
+                {% endif %}
+
+                <section
+                    class="content-panel simulation-status-panel"
+                    data-simulation-status-url="/api/simulation/status"
+                >
+                    <div class="section-header">
+                        <div>
+                            <h2>Simulation Status</h2>
+                            <p>
+                                One isolated astronaut writes simulated Health and Radiation readings.
+                                Tracking keeps Sim Lab readings separate from real data.
+                            </p>
+                        </div>
+                        <span
+                            class="health-rule-status {{ 'is-enabled' if simulation.running else 'is-disabled' }}"
+                            data-simulation-running
+                        >{{ "RUNNING" if simulation.running else "STOPPED" }}</span>
+                    </div>
+
+                    <div class="simulation-astronaut">
+                        <span>SIMULATION ASTRONAUT</span>
+                        <strong>{{ simulation.astronaut_name }}</strong>
+                        <code>{{ simulation.astronaut_id }}</code>
+                    </div>
+
+                    <div class="simulation-current-data">
+                        {% for measurement, value in simulation.current.items() %}
+                        <div
+                            data-simulation-reading="{{ measurement }}"
+                            {% if measurement in simulation.abnormal_measurements %}
+                            class="is-abnormal"
+                            {% endif %}
+                        >
+                            <span>{{ measurement | replace("_", " ") | title }}</span>
+                            <strong>{{ value }} {{ health_units[measurement] }}</strong>
+                        </div>
+                        {% endfor %}
+                        <div
+                            data-simulation-reading="radiation"
+                            {% if simulation.radiation_severity %}
+                            class="is-abnormal"
+                            {% endif %}
+                        >
+                            <span>Accumulated Radiation</span>
+                            <strong>
+                                {% if simulation.current_dose_msv is not none %}
+                                {{ "%.4f" | format(simulation.current_dose_msv) }} mSv
+                                {% else %}
+                                {{ initial_dose_msv }} mSv
+                                {% endif %}
+                            </strong>
+                        </div>
+                    </div>
+
+                    <div class="simulation-runtime">
+                        <span data-simulation-speed>
+                            Speed: {{ simulation.speed }}x
+                            ({{ simulation.speed }} simulated seconds per real second)
+                        </span>
+                        <span data-simulation-retention>
+                            On stop: {{ "keep generated history" if simulation.retention == "retain" else "clear generated history" }}
+                        </span>
+                        <span data-simulation-time>
+                            Simulated time: {{ simulation.simulation_time or "Not started" }}
+                        </span>
+                    </div>
+
+                    {% if simulation.running %}
+                    <div class="simulation-speed-control">
+                        <label for="simulation-live-speed">Adjust speed while running</label>
+                        <input
+                            id="simulation-live-speed"
+                            type="range"
+                            min="1"
+                            max="10"
+                            step="1"
+                            value="{{ simulation.speed }}"
+                            data-simulation-speed-control
+                            aria-label="Simulation speed"
+                        >
+                        <output data-simulation-speed-value>{{ simulation.speed }}x</output>
+                        <span data-simulation-speed-error role="alert"></span>
+                    </div>
+                    {% endif %}
+
+                    {% if simulation.running or (
+                        simulation.session_id and simulation.retention == "clear"
+                    ) %}
+                    <form method="POST" action="/simulation/stop" class="form-actions">
+                        <button type="submit" class="action-button danger">
+                            {{ "Stop Simulation" if simulation.running else "Clear Failed Run Data" }}
+                        </button>
+                    </form>
+                    {% endif %}
+                </section>
+
+                {% if not simulation.running %}
+                <section class="content-panel simulation-start-panel">
+                    <div class="section-header">
+                        <div>
+                            <h2>Configure and Start</h2>
+                            <p>Every starting value is required. Starting readings are recorded immediately.</p>
+                        </div>
+                    </div>
+
+                    <form method="POST" action="/simulation/start" class="health-measurement-form simulation-start-form">
+                        <label for="simulation-heart-rate">Heart Rate (bpm)</label>
+                        <input id="simulation-heart-rate" name="heart_rate" type="number" step="any" value="{{ initial_values.heart_rate }}" required>
+
+                        <label for="simulation-blood-oxygen">Blood Oxygen (%)</label>
+                        <input id="simulation-blood-oxygen" name="blood_oxygen" type="number" step="any" value="{{ initial_values.blood_oxygen }}" required>
+
+                        <label for="simulation-body-temperature">Body Temperature (°C)</label>
+                        <input id="simulation-body-temperature" name="body_temperature" type="number" step="any" value="{{ initial_values.body_temperature }}" required>
+
+                        <label for="simulation-respiratory-rate">Respiratory Rate (breaths/min)</label>
+                        <input id="simulation-respiratory-rate" name="respiratory_rate" type="number" step="any" value="{{ initial_values.respiratory_rate }}" required>
+
+                        <label for="simulation-systolic-bp">Systolic Blood Pressure (mmHg)</label>
+                        <input id="simulation-systolic-bp" name="systolic_blood_pressure" type="number" step="any" value="{{ initial_values.systolic_blood_pressure }}" required>
+
+                        <label for="simulation-diastolic-bp">Diastolic Blood Pressure (mmHg)</label>
+                        <input id="simulation-diastolic-bp" name="diastolic_blood_pressure" type="number" step="any" value="{{ initial_values.diastolic_blood_pressure }}" required>
+
+                        <label for="simulation-radiation-dose">Starting Radiation Dose (mSv)</label>
+                        <input id="simulation-radiation-dose" name="radiation_dose_msv" type="number" min="0" step="any" value="{{ initial_dose_msv }}" required>
+
+                        <label for="simulation-speed">Simulation Speed</label>
+                        <input
+                            id="simulation-speed"
+                            name="speed"
+                            type="range"
+                            min="1"
+                            max="10"
+                            step="1"
+                            value="{{ simulation.speed }}"
+                            data-simulation-start-speed
+                        >
+                        <output data-simulation-start-speed-value>{{ simulation.speed }}x — {{ simulation.speed }} simulated seconds per real second</output>
+
+                        <label for="simulation-retention">When the simulation stops</label>
+                        <select id="simulation-retention" name="retention" required>
+                            <option value="retain" {% if simulation.retention == "retain" %}selected{% endif %}>Keep simulated history and alerts</option>
+                            <option value="clear" {% if simulation.retention == "clear" %}selected{% endif %}>Clear this run's simulated history and alerts</option>
+                        </select>
+
+                        <p class="simulation-note">
+                            Health readings use the existing enabled monitoring rules. Radiation accumulates at 50 mSv per six simulated months.
+                            The simulation updates every real-time second; speed controls how many simulated seconds pass per update.
+                            Rare Health excursions may create alerts. Generated data is marked SIMULATED and tagged sim_lab.
+                        </p>
+
+                        <div class="form-actions">
+                            <button type="submit" class="action-button">
+                                Start Simulation
+                            </button>
+                        </div>
+                    </form>
+                </section>
+                {% endif %}
+
+            </div>
+
+
         <!-- RADIATION MONITORING -->
         {% elif active_page == "radiation" %}
 

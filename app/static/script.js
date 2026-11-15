@@ -3,6 +3,316 @@
    AETHER — DASHBOARD REFRESH
 ========================================== */
 
+const DASHBOARD_SVG_NS = "http://www.w3.org/2000/svg";
+
+function dashboardSvgElement(name, attributes = {}, text = null) {
+    const element = document.createElementNS(DASHBOARD_SVG_NS, name);
+    Object.entries(attributes).forEach(([attribute, value]) => {
+        element.setAttribute(attribute, value);
+    });
+    if (text !== null) element.textContent = text;
+    return element;
+}
+
+function dashboardChartSvg(container, viewBox, label) {
+    const svg = dashboardSvgElement("svg", {
+        viewBox,
+        role: "img",
+        "aria-label": label,
+        class: "dashboard-chart-svg",
+        preserveAspectRatio: "none"
+    });
+    container.replaceChildren(svg);
+    return svg;
+}
+
+function renderChartEmpty(container, message) {
+    const empty = document.createElement("div");
+    empty.className = "chart-empty";
+    empty.textContent = message;
+    container.replaceChildren(empty);
+}
+
+function renderHeartRateChart(points) {
+    const container = document.getElementById("vitals-chart");
+    if (!container) return;
+
+    const validPoints = points.filter((point) => Number.isFinite(Number(point.value)));
+    if (!validPoints.length) {
+        renderChartEmpty(container, "No heart-rate measurements recorded");
+        return;
+    }
+
+    const width = 600;
+    const height = 220;
+    const margin = { top: 16, right: 18, bottom: 46, left: 44 };
+    const plotWidth = width - margin.left - margin.right;
+    const plotHeight = height - margin.top - margin.bottom;
+    const values = validPoints.map((point) => Number(point.value));
+    const minimum = Math.floor((Math.min(...values) - 10) / 10) * 10;
+    const maximum = Math.ceil((Math.max(...values) + 10) / 10) * 10;
+    const range = Math.max(maximum - minimum, 20);
+    const y = (value) => (
+        margin.top + (maximum - value) / range * plotHeight
+    );
+    const x = (index) => (
+        margin.left + (
+            validPoints.length === 1
+                ? plotWidth / 2
+                : index / (validPoints.length - 1) * plotWidth
+        )
+    );
+    const svg = dashboardChartSvg(
+        container,
+        `0 0 ${width} ${height}`,
+        "Current heart rate by astronaut"
+    );
+
+    for (let tick = 0; tick <= 4; tick += 1) {
+        const value = minimum + range * tick / 4;
+        const yPosition = y(value);
+        svg.append(
+            dashboardSvgElement("line", {
+                x1: margin.left,
+                x2: width - margin.right,
+                y1: yPosition,
+                y2: yPosition,
+                class: "dashboard-chart-gridline"
+            }),
+            dashboardSvgElement("text", {
+                x: margin.left - 8,
+                y: yPosition + 3,
+                "text-anchor": "end",
+                class: "dashboard-chart-axis-label"
+            }, `${Math.round(value)}`)
+        );
+    }
+
+    const path = validPoints.map((point, index) => (
+        `${index ? "L" : "M"} ${x(index)} ${y(Number(point.value))}`
+    )).join(" ");
+    svg.append(dashboardSvgElement("path", {
+        d: path,
+        class: "dashboard-health-line"
+    }));
+
+    validPoints.forEach((point, index) => {
+        const pointX = x(index);
+        const pointY = y(Number(point.value));
+        const circle = dashboardSvgElement("circle", {
+            cx: pointX,
+            cy: pointY,
+            r: 5,
+            class: "dashboard-health-point"
+        });
+        circle.append(
+            dashboardSvgElement(
+                "title",
+                {},
+                `${point.name}: ${point.value} ${point.unit || "bpm"}`
+            )
+        );
+        svg.append(
+            circle,
+            dashboardSvgElement("text", {
+                x: pointX,
+                y: height - 19,
+                "text-anchor": "middle",
+                class: "dashboard-chart-axis-label"
+            }, point.name.length > 12
+                ? `${point.name.slice(0, 11)}…`
+                : point.name)
+        );
+    });
+
+    const caption = document.createElement("div");
+    caption.className = "dashboard-chart-caption";
+    caption.textContent = "Latest heart rate per astronaut · bpm";
+    container.append(caption);
+}
+
+function renderRadiationChart(series) {
+    const container = document.getElementById("radiation-chart");
+    if (!container) return;
+
+    const validSeries = series.filter((item) => item.actual.length);
+    if (!validSeries.length) {
+        renderChartEmpty(container, "No radiation measurements recorded");
+        return;
+    }
+
+    const width = 600;
+    const height = 220;
+    const margin = { top: 16, right: 18, bottom: 42, left: 48 };
+    const plotWidth = width - margin.left - margin.right;
+    const plotHeight = height - margin.top - margin.bottom;
+    const plottedSeries = validSeries.map((item) => ({
+        ...item,
+        actual: item.actual.map((point) => ({
+            ...point,
+            time: Date.parse(point.timestamp),
+            value: Number(point.dose_msv)
+        })),
+        predicted: item.predicted.map((point) => ({
+            ...point,
+            time: Date.parse(point.timestamp),
+            value: Number(point.dose_msv)
+        }))
+    })).filter((item) => (
+        item.actual.every((point) => Number.isFinite(point.time) && Number.isFinite(point.value))
+        && item.predicted.every((point) => Number.isFinite(point.time) && Number.isFinite(point.value))
+    ));
+
+    if (!plottedSeries.length) {
+        renderChartEmpty(container, "Radiation chart data is unavailable");
+        return;
+    }
+
+    const allPoints = plottedSeries.flatMap((item) => (
+        [...item.actual, ...item.predicted]
+    ));
+    let minimumTime = Math.min(...allPoints.map((point) => point.time));
+    let maximumTime = Math.max(...allPoints.map((point) => point.time));
+    if (minimumTime === maximumTime) maximumTime = minimumTime + 1;
+    const maximumDose = Math.max(...allPoints.map((point) => point.value));
+    const yMaximum = maximumDose > 0 ? maximumDose * 1.12 : 1;
+    const x = (time) => (
+        margin.left + (time - minimumTime) / (maximumTime - minimumTime) * plotWidth
+    );
+    const y = (value) => (
+        margin.top + (yMaximum - value) / yMaximum * plotHeight
+    );
+    const svg = dashboardChartSvg(
+        container,
+        `0 0 ${width} ${height}`,
+        "Recorded and projected radiation dose by astronaut"
+    );
+
+    for (let tick = 0; tick <= 4; tick += 1) {
+        const value = yMaximum * tick / 4;
+        const yPosition = y(value);
+        svg.append(
+            dashboardSvgElement("line", {
+                x1: margin.left,
+                x2: width - margin.right,
+                y1: yPosition,
+                y2: yPosition,
+                class: "dashboard-chart-gridline"
+            }),
+            dashboardSvgElement("text", {
+                x: margin.left - 8,
+                y: yPosition + 3,
+                "text-anchor": "end",
+                class: "dashboard-chart-axis-label"
+            }, value.toPrecision(2))
+        );
+    }
+
+    for (let tick = 0; tick <= 4; tick += 1) {
+        const time = minimumTime + (
+            (maximumTime - minimumTime) * tick / 4
+        );
+        const label = new Date(time).toLocaleDateString(undefined, {
+            month: "short",
+            year: "2-digit",
+            timeZone: "UTC"
+        });
+        svg.append(dashboardSvgElement("text", {
+            x: x(time),
+            y: height - 12,
+            "text-anchor": tick === 0
+                ? "start"
+                : tick === 4 ? "end" : "middle",
+            class: "dashboard-chart-axis-label"
+        }, label));
+    }
+
+    const colors = ["#5ee4ff", "#3ad6b4", "#ffc85c", "#ff9a4d", "#b69cff"];
+    const legend = document.createElement("div");
+    legend.className = "dashboard-chart-legend";
+
+    plottedSeries.forEach((item, index) => {
+        const color = colors[index % colors.length];
+        const actualPath = item.actual.map((point, pointIndex) => (
+            `${pointIndex ? "L" : "M"} ${x(point.time)} ${y(point.value)}`
+        )).join(" ");
+        svg.append(dashboardSvgElement("path", {
+            d: actualPath,
+            stroke: color,
+            class: "dashboard-radiation-actual-line"
+        }));
+
+        const lastActual = item.actual[item.actual.length - 1];
+        const forecastPoints = [lastActual, ...item.predicted];
+        const forecastPath = forecastPoints.map((point, pointIndex) => (
+            `${pointIndex ? "L" : "M"} ${x(point.time)} ${y(point.value)}`
+        )).join(" ");
+        svg.append(dashboardSvgElement("path", {
+            d: forecastPath,
+            stroke: color,
+            class: "dashboard-radiation-predicted-line"
+        }));
+
+        item.actual.forEach((point) => {
+            const circle = dashboardSvgElement("circle", {
+                cx: x(point.time),
+                cy: y(point.value),
+                r: 3.5,
+                fill: color,
+                stroke: color,
+                class: "dashboard-radiation-point"
+            });
+            circle.append(dashboardSvgElement(
+                "title",
+                {},
+                `${item.name}: ${point.value} mSv · recorded`
+            ));
+            svg.append(circle);
+        });
+
+        item.predicted.forEach((point) => {
+            const circle = dashboardSvgElement("circle", {
+                cx: x(point.time),
+                cy: y(point.value),
+                r: 4,
+                fill: "none",
+                stroke: color,
+                class: "dashboard-radiation-point"
+            });
+            circle.append(dashboardSvgElement(
+                "title",
+                {},
+                `${item.name}: ${point.value} mSv · projected in ${point.months_ahead} months`
+            ));
+            svg.append(circle);
+        });
+
+        const legendItem = document.createElement("span");
+        legendItem.className = "dashboard-chart-legend-name";
+        const swatch = document.createElement("i");
+        swatch.style.setProperty("--series-color", color);
+        legendItem.append(swatch, document.createTextNode(item.name));
+        legend.append(legendItem);
+    });
+
+    const key = document.createElement("div");
+    key.className = "dashboard-chart-key";
+    [
+        ["is-actual", "Recorded"],
+        ["is-predicted", "Projected"]
+    ].forEach(([className, label]) => {
+        const keyItem = document.createElement("span");
+        const marker = document.createElement("i");
+        marker.className = className;
+        keyItem.append(marker, document.createTextNode(label));
+        key.append(keyItem);
+    });
+    const caption = document.createElement("div");
+    caption.className = "dashboard-chart-caption";
+    caption.textContent = "Accumulated dose · mSv";
+    container.append(legend, caption, key);
+}
+
 async function refreshDashboard() {
     const dashboard = document.querySelector(".dashboard");
 
@@ -16,6 +326,8 @@ async function refreshDashboard() {
         }
 
         const data = await response.json();
+        renderHeartRateChart(data.heart_rate_chart || []);
+        renderRadiationChart(data.radiation_chart || []);
 
         // Update summary metrics
         const metricCards = document.querySelectorAll(".metric-card");
@@ -366,4 +678,166 @@ setInterval(refreshDashboard, 5000);
     astronautSelect.addEventListener("change", updateProjection);
     horizon.addEventListener("input", updateProjection);
     updateProjection();
+})();
+
+
+/* ==========================================
+   AETHER — SIMULATION LAB STATUS
+========================================== */
+
+(() => {
+    const panel = document.querySelector("[data-simulation-status-url]");
+
+    if (!panel) return;
+
+    const runningLabel = panel.querySelector("[data-simulation-running]");
+    const speedLabel = panel.querySelector("[data-simulation-speed]");
+    const retentionLabel = panel.querySelector("[data-simulation-retention]");
+    const timeLabel = panel.querySelector("[data-simulation-time]");
+    const liveSpeedControl = panel.querySelector(
+        "[data-simulation-speed-control]"
+    );
+    const liveSpeedValue = panel.querySelector(
+        "[data-simulation-speed-value]"
+    );
+    const liveSpeedError = panel.querySelector(
+        "[data-simulation-speed-error]"
+    );
+    const startSpeedControl = document.querySelector(
+        "[data-simulation-start-speed]"
+    );
+    const startSpeedValue = document.querySelector(
+        "[data-simulation-start-speed-value]"
+    );
+
+    const renderSpeed = (speed, updateStartControl = true) => {
+        speedLabel.textContent =
+            `Speed: ${speed}x (${speed} simulated seconds per real second)`;
+        if (
+            liveSpeedValue
+            && document.activeElement !== liveSpeedControl
+        ) {
+            liveSpeedValue.textContent = `${speed}x`;
+        }
+        if (startSpeedValue && updateStartControl) {
+            startSpeedValue.textContent =
+                `${speed}x — ${speed} simulated seconds per real second`;
+        }
+    };
+
+    const refreshSimulationStatus = async () => {
+        try {
+            const response = await fetch(panel.dataset.simulationStatusUrl);
+            if (!response.ok) {
+                throw new Error("Simulation status request failed.");
+            }
+
+            const status = await response.json();
+            runningLabel.textContent = status.running ? "RUNNING" : "STOPPED";
+            runningLabel.className = `health-rule-status ${
+                status.running ? "is-enabled" : "is-disabled"
+            }`;
+            renderSpeed(
+                status.speed,
+                document.activeElement !== startSpeedControl
+            );
+            retentionLabel.textContent =
+                `On stop: ${status.retention === "retain"
+                    ? "keep generated history"
+                    : "clear generated history"}`;
+            timeLabel.textContent =
+                `Simulated time: ${status.simulation_time || "Not started"}`;
+
+            if (
+                liveSpeedControl
+                && document.activeElement !== liveSpeedControl
+            ) {
+                liveSpeedControl.value = status.speed;
+            }
+
+            const abnormalMeasurements = new Set(
+                status.abnormal_measurements || []
+            );
+            Object.entries(status.current || {}).forEach(([measurement, value]) => {
+                const card = panel.querySelector(
+                    `[data-simulation-reading="${measurement}"]`
+                );
+                const reading = panel.querySelector(
+                    `[data-simulation-reading="${measurement}"] strong`
+                );
+                if (card) {
+                    card.classList.toggle(
+                        "is-abnormal",
+                        abnormalMeasurements.has(measurement)
+                    );
+                }
+                if (reading) {
+                    reading.textContent = `${value} ${reading.textContent.split(" ").slice(-1)[0]}`;
+                }
+            });
+
+            const radiationCard = panel.querySelector(
+                '[data-simulation-reading="radiation"]'
+            );
+            const radiation = panel.querySelector(
+                '[data-simulation-reading="radiation"] strong'
+            );
+            if (radiationCard) {
+                radiationCard.classList.toggle(
+                    "is-abnormal",
+                    Boolean(status.radiation_severity)
+                );
+            }
+            if (radiation && status.current_dose_msv !== null) {
+                radiation.textContent = `${Number(status.current_dose_msv).toFixed(4)} mSv`;
+            }
+        } catch (error) {
+            console.error("AETHER Simulation Lab status update failed:", error);
+        }
+    };
+
+    if (liveSpeedControl) {
+        liveSpeedControl.addEventListener("input", () => {
+            liveSpeedValue.textContent = `${liveSpeedControl.value}x`;
+            liveSpeedError.textContent = "";
+        });
+
+        liveSpeedControl.addEventListener("change", async () => {
+            liveSpeedControl.disabled = true;
+            liveSpeedError.textContent = "";
+            try {
+                const response = await fetch("/api/simulation/speed", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/x-www-form-urlencoded"
+                    },
+                    body: new URLSearchParams({
+                        speed: liveSpeedControl.value
+                    })
+                });
+                const status = await response.json();
+                if (!response.ok) {
+                    throw new Error(status.detail || "Could not update speed.");
+                }
+
+                liveSpeedControl.value = status.speed;
+                renderSpeed(status.speed);
+            } catch (error) {
+                liveSpeedError.textContent = error.message;
+                console.error("AETHER Simulation Lab speed update failed:", error);
+                refreshSimulationStatus();
+            } finally {
+                liveSpeedControl.disabled = false;
+            }
+        });
+    }
+
+    if (startSpeedControl) {
+        startSpeedControl.addEventListener("input", () => {
+            renderSpeed(startSpeedControl.value);
+        });
+    }
+
+    refreshSimulationStatus();
+    window.setInterval(refreshSimulationStatus, 1000);
 })();
