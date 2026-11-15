@@ -127,6 +127,7 @@ AETHER's health-monitoring and evaluation concepts are informed by NASA research
 
 1. NASA — [The Human Body in Space](https://www.nasa.gov/humans-in-space/the-human-body-in-space/)
 2. NASA — [Space Adaptation Sickness: NASA-STD-3001 Medical Technical Brief](https://www.nasa.gov/wp-content/uploads/2025/09/ochmo-mtb-004-space-adaptation-sickness-sas.pdf)
+3. NASA - [Open Science Data Repository](https://science.nasa.gov/biological-physical/data/osdr/)
 
 These resources provide scientific context for understanding physiological changes and health concerns associated with human spaceflight.
 
