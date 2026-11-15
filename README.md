@@ -68,8 +68,14 @@ AETHER is developed primarily using Python.
 - **SQLite:** Persistent data storage.
 - **HTML and CSS:** Website structure and styling.
 
-### **Installation and Execution**
+## **Installation and Execution**
 
+### Method 1: Public Link
+Just open this link on a web browser:
+`https://aether-crth.onrender.com/`
+This is a site hosted on `render.com`
+
+### Method 2: Locally
 **Requirements:** Python 3.10 or newer and pip.
 
 Clone the repo:
